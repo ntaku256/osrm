@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  shelter-api
+
+Globals:
+  Function:
+    Timeout: 300
+    Runtime: provided.al2
+    Handler: bootstrap
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        ENV: !Ref ENV
+        SSM_PATH_DYNAMODB_TABLE_NAME: !Ref DynamoDBTableNameParam
+        SSM_PATH_AWS_REGION: !Ref AWSRegionParam
+  Api:
+    OpenApiVersion: 3.0.2
+
+Parameters:
+  ENV:
+    Type: String
+    AllowedValues:
+      - dev # 開発環境
+      - prd # 本番環境
+    Default: dev
+
+Conditions:
+  isPrd: !Equals [!Ref ENV, prd]
+
+Resources:
+  # DynamoDB Table
+  ShelterTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ENV}-shelters"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [isPrd, true, false]
+
+  # SSM Parameters
+  DynamoDBTableNameParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ENV}/shelter-api/dynamodb-table-name"
+      Description: DynamoDB table name for shelter API
+      Type: String
+      Value: !Ref ShelterTable
+
+  AWSRegionParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ENV}/shelter-api/aws-region"
+      Description: AWS Region for shelter API
+      Type: String
+      Value: !Ref AWS::Region
+
+  # Role
+  ShelterFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ENV}-shelter-api-execution-role"
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "${ENV}-shelter-api-execution-role-policy"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                Resource: !GetAtt ShelterTable.Arn
+              - Effect: Allow
+                Action:
+                  - ssm:DescribeParameters
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ENV}/shelter-api/*"
+
+  # API Gateway
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub "${ENV}-shelter-api"
+      StageName: api
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: apigateway.yml
+
+  # Lambda
+  ShelterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ENV}-shelter-ShelterFunction"
+      Role: !GetAtt ShelterFunctionRole.Arn
+      CodeUri: ./
+      Events:
+        GetShelters:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /shelters
+            Method: GET
+        CreateShelter:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /shelters
+            Method: POST
+        GetShelter:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /shelters/{id}
+            Method: GET
+        UpdateShelter:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /shelters/{id}
+            Method: PUT
+        DeleteShelter:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /shelters/{id}
+            Method: DELETE
+    Metadata:
+      BuildMethod: makefile
+
+Outputs:
+  ApiEndpoint:
+    Description: "API Gateway endpoint URL for Shelter API"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api"
+  ShelterFunction:
+    Description: "Shelter Function ARN"
+    Value: !GetAtt ShelterFunction.Arn
+  ShelterTable:
+    Description: "DynamoDB Table Name"
+    Value: !Ref ShelterTable
+  SSMParameterPath:
+    Description: "SSM Parameter Path for configuration"
+    Value: !Sub "/${ENV}/shelter-api/"
+  

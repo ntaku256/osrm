@@ -1,0 +1,190 @@
+openapi: 3.0.0
+info:
+  title: Shelter API
+  version: 1.0.0
+paths:
+  /shelters:
+    get:
+      summary: Get all shelters
+      responses:
+        '200':
+          description: List of shelters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListShelterResponse'
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Create a shelter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Shelter'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shelter'
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /shelters/{id}:
+    get:
+      summary: Get a shelter by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Shelter found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shelter'
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      summary: Update a shelter
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Shelter'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shelter'
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Delete a shelter
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        status_code:
+          type: integer
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - status_code
+        - message
+    Shelter:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        height:
+          type: number
+      required:
+        - id
+        - name
+        - lat
+        - lng
+        - height
+    ListShelterResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Shelter"
+    CreateShelter:
+      type: object
+      properties:
+        name:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        height:
+          type: number
+      required:
+        - name
+        - lat
+        - lng
+        - height
+    UpdateShelter:
+      type: object
+      properties:
+        name:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        height:
+          type: number
+      required:
+        - name
+        - lat
+        - lng
+        - height
+    Empty:
+      type: object
