@@ -1,0 +1,12 @@
+# AWS SAM build files
+.aws-sam/
+.aws-sam/build.toml
+build.toml
+
+# Go binaries
+/bootstrap
+/vendor
+
+# OS specific files
+.DS_Store
+Thumbs.db

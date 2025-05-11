@@ -1,0 +1,28 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "osrm"
+s3_bucket = ""
+s3_prefix = "osrm"
+region = "ap-northeast-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_NAMED_IAM"
+parameter_overrides = "ENV=\"dev\" Architectures=\"arm64\""
+image_repositories = []
+disable_rollback = true
+resolve_s3 = true
+
+[prd]
+[prd.deploy]
+[prd.deploy.parameters]
+stack_name = "prd-osrm"
+s3_bucket = ""
+s3_prefix = "prd-osrm"
+region = "ap-northeast-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_NAMED_IAM"
+parameter_overrides = [
+  "ENV=prd",
+]
+image_repositories = []

@@ -1,7 +1,9 @@
 openapi: 3.0.0
 info:
   title: Obstacle API
+  description: API for managing obstacle data
   version: 1.0.0
+
 paths:
   /obstacles:
     get:
@@ -19,6 +21,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ObstacleFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
     post:
       summary: Create an obstacle
       requestBody:
@@ -40,6 +50,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ObstacleFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
   /obstacles/{id}:
     get:
       summary: Get an obstacle by ID
@@ -62,6 +80,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ObstacleFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
     put:
       summary: Update an obstacle
       parameters:
@@ -89,6 +115,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ObstacleFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
     delete:
       summary: Delete an obstacle
       parameters:
@@ -110,6 +144,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ObstacleFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
 components:
   schemas:
     Error:

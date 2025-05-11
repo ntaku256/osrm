@@ -1,13 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 import ObstacleForm from "@/components/obstacle-form"
+import ObstacleEditForm from "@/components/obstacle-edit-form"
 import { type Obstacle, ObstacleType, DangerLevel } from "@/types/obstacle"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Info, MapPin, Calendar } from "lucide-react"
+import { MapPin, Calendar, Trash2, Edit } from "lucide-react"
+import { obstacleApi } from "@/utils/api"
+import { useToast } from "@/components/ui/use-toast"
+
+// Update Obstacle type to include id for API interaction
+interface ExtendedObstacle extends Obstacle {
+  id?: number;
+}
 
 // Dynamically import the map component to avoid SSR issues with Leaflet
 const ObstacleMap = dynamic(() => import("@/components/obstacle-map"), {
@@ -16,42 +24,128 @@ const ObstacleMap = dynamic(() => import("@/components/obstacle-map"), {
 })
 
 export default function ObstacleMapContainer() {
-  const [obstacles, setObstacles] = useState<Obstacle[]>([])
+  const [obstacles, setObstacles] = useState<ExtendedObstacle[]>([])
   const [selectedPosition, setSelectedPosition] = useState<[number, number] | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
-  const [selectedObstacle, setSelectedObstacle] = useState<Obstacle | null>(null)
-  const [availableRoutes, setAvailableRoutes] = useState<any[]>([])
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false)
+  const [selectedObstacle, setSelectedObstacle] = useState<ExtendedObstacle | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
+
+  // Fetch obstacles on component mount
+  useEffect(() => {
+    const fetchObstacles = async () => {
+      setIsLoading(true);
+      try {
+        const response = await obstacleApi.getAll();
+        if (!response.error && response.data) {
+          setObstacles(response.data);
+        } else if (response.error) {
+          toast({
+            title: "エラー",
+            description: "障害物の取得に失敗しました: " + response.error,
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch obstacles:", error);
+        toast({
+          title: "エラー",
+          description: "障害物の取得中にエラーが発生しました",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchObstacles();
+  }, [toast]);
 
   const handleMapClick = (position: [number, number]) => {
     setSelectedPosition(position)
     setIsFormOpen(true)
-    // 新しい障害物を追加するときは選択状態をクリア
+    // Clear selection when adding a new obstacle
     setSelectedObstacle(null)
   }
 
-  const handleObstacleSubmit = (obstacle: Obstacle) => {
-    setObstacles([...obstacles, obstacle])
+  const handleObstacleSubmit = (newObstacle: Obstacle) => {
     setIsFormOpen(false)
-    // 選択位置はクリアするが、地図の表示位置は保持する
     setSelectedPosition(null)
-    // 利用可能な経路をクリア
-    setAvailableRoutes([])
+    
+    // Add the new obstacle to the list
+    const extendedObstacle: ExtendedObstacle = {
+      ...newObstacle,
+      // The API might have assigned an id if it was created via the API
+    };
+    setObstacles(prev => [...prev, extendedObstacle])
+  }
+
+  const handleObstacleUpdate = (updatedObstacle: ExtendedObstacle) => {
+    setIsEditFormOpen(false)
+    
+    // Update the obstacle in the list
+    setObstacles(prev => 
+      prev.map(o => o.id === updatedObstacle.id ? updatedObstacle : o)
+    )
+    
+    // Update the selected obstacle with new data
+    setSelectedObstacle(updatedObstacle)
   }
 
   const handleFormCancel = () => {
     setIsFormOpen(false)
     setSelectedPosition(null)
-    // 利用可能な経路をクリア
-    setAvailableRoutes([])
   }
 
-  const handleObstacleSelect = (obstacle: Obstacle | null) => {
+  const handleEditCancel = () => {
+    setIsEditFormOpen(false)
+  }
+
+  const handleEditClick = () => {
+    setIsEditFormOpen(true)
+  }
+
+  const handleObstacleSelect = (obstacle: ExtendedObstacle | null) => {
     setSelectedObstacle(obstacle)
+    setIsEditFormOpen(false)
   }
 
-  const handleRoutesFound = (routes: any[]) => {
-    setAvailableRoutes(routes)
-  }
+  const handleDeleteObstacle = async () => {
+    if (!selectedObstacle || !selectedObstacle.id) {
+      toast({
+        title: "エラー",
+        description: "この障害物は削除できません (IDが見つかりません)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await obstacleApi.delete(selectedObstacle.id);
+      if (!response.error) {
+        setObstacles(obstacles.filter(o => o.id !== selectedObstacle.id));
+        setSelectedObstacle(null);
+        toast({
+          title: "削除完了",
+          description: "障害物が正常に削除されました",
+        });
+      } else {
+        toast({
+          title: "エラー",
+          description: "障害物の削除に失敗しました: " + response.error,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to delete obstacle:", error);
+      toast({
+        title: "エラー",
+        description: "障害物の削除中にエラーが発生しました",
+        variant: "destructive",
+      });
+    }
+  };
 
   // 危険度に応じた色を返す関数
   const getDangerLevelColor = (level: DangerLevel): string => {
@@ -70,14 +164,17 @@ export default function ObstacleMapContainer() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-2">
-        <ObstacleMap
-          obstacles={obstacles}
-          onMapClick={handleMapClick}
-          selectedPosition={selectedPosition}
-          selectedObstacle={selectedObstacle}
-          onObstacleSelect={handleObstacleSelect}
-          onRoutesFound={handleRoutesFound}
-        />
+        {isLoading ? (
+          <div className="h-[600px] bg-gray-100 flex items-center justify-center">障害物データを読み込み中...</div>
+        ) : (
+          <ObstacleMap
+            obstacles={obstacles}
+            onMapClick={handleMapClick}
+            selectedPosition={selectedPosition}
+            selectedObstacle={selectedObstacle}
+            onObstacleSelect={handleObstacleSelect}
+          />
+        )}
       </div>
       <div>
         {isFormOpen && selectedPosition ? (
@@ -85,7 +182,12 @@ export default function ObstacleMapContainer() {
             position={selectedPosition}
             onSubmit={handleObstacleSubmit}
             onCancel={handleFormCancel}
-            availableRoutes={availableRoutes}
+          />
+        ) : isEditFormOpen && selectedObstacle ? (
+          <ObstacleEditForm
+            obstacle={selectedObstacle}
+            onSubmit={handleObstacleUpdate}
+            onCancel={handleEditCancel}
           />
         ) : selectedObstacle ? (
           <Card>
@@ -116,24 +218,27 @@ export default function ObstacleMapContainer() {
                   </span>
                 </div>
 
-                {selectedObstacle.routeInfo && (
-                  <div className="flex items-center gap-2">
-                    <Info className="h-4 w-4 text-gray-500" />
-                    <span>
-                      最寄り道路: {selectedObstacle.routeInfo.name}({selectedObstacle.routeInfo.distance.toFixed(1)}m)
-                    </span>
-                  </div>
-                )}
-
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-gray-500" />
                   <span>登録日時: {new Date(selectedObstacle.createdAt).toLocaleString("ja-JP")}</span>
                 </div>
               </div>
 
-              <Button variant="outline" className="w-full" onClick={() => setSelectedObstacle(null)}>
-                選択解除
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setSelectedObstacle(null)}>
+                  選択解除
+                </Button>
+                {selectedObstacle.id && (
+                  <>
+                    <Button variant="default" size="icon" onClick={handleEditClick}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="destructive" size="icon" onClick={handleDeleteObstacle}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
             </CardContent>
           </Card>
         ) : (
@@ -143,7 +248,7 @@ export default function ObstacleMapContainer() {
               <ul className="space-y-2">
                 {obstacles.map((obstacle, index) => (
                   <li
-                    key={index}
+                    key={obstacle.id || index}
                     className="border rounded p-2 cursor-pointer hover:bg-gray-50 transition-colors"
                     onClick={() => setSelectedObstacle(obstacle)}
                   >
@@ -183,15 +288,15 @@ function getDangerLevelBg(level: DangerLevel): string {
 // 障害物タイプに応じたアイコンを返す
 function getObstacleTypeIcon(type: ObstacleType): string {
   switch (type) {
-    case ObstacleType.CONSTRUCTION:
-      return "🚧"
-    case ObstacleType.ROAD_DAMAGE:
-      return "🕳️"
-    case ObstacleType.FLOODING:
-      return "💧"
-    case ObstacleType.FALLEN_OBJECT:
-      return "📦"
-    case ObstacleType.NARROW_PATH:
+    case ObstacleType.BLOCK_WALL:
+      return "🧱"
+    case ObstacleType.VENDING_MACHINE:
+      return "🥤"
+    case ObstacleType.STAIRS:
+      return "🪜"
+    case ObstacleType.STEEP_SLOPES:
+      return "⛰️"
+    case ObstacleType.NARROW_ROADS:
       return "↔️"
     case ObstacleType.OTHER:
       return "❓"

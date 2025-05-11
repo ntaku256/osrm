@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -15,61 +14,80 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
 import { obstacleApi } from "@/utils/api"
 
-interface ObstacleFormProps {
-  position: [number, number]
-  onSubmit: (obstacle: Obstacle) => void
+interface ObstacleEditFormProps {
+  obstacle: Obstacle & { id?: number }
+  onSubmit: (updatedObstacle: Obstacle & { id?: number }) => void
   onCancel: () => void
 }
 
-export default function ObstacleForm({ position, onSubmit, onCancel }: ObstacleFormProps) {
-  const [type, setType] = useState<ObstacleType>(ObstacleType.OTHER)
-  const [description, setDescription] = useState("")
-  const [dangerLevel, setDangerLevel] = useState<DangerLevel>(DangerLevel.MEDIUM)
+export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: ObstacleEditFormProps) {
+  const [type, setType] = useState<ObstacleType>(obstacle.type)
+  const [description, setDescription] = useState(obstacle.description)
+  const [dangerLevel, setDangerLevel] = useState<DangerLevel>(obstacle.dangerLevel)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
+
+  // フォームの初期値を設定
+  useEffect(() => {
+    setType(obstacle.type)
+    setDescription(obstacle.description)
+    setDangerLevel(obstacle.dangerLevel)
+  }, [obstacle])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
     setError(null)
 
+    if (!obstacle.id) {
+      setError("更新するには障害物IDが必要です")
+      setIsSubmitting(false)
+      return
+    }
+
     try {
-      // Create the request body according to API expectations
-      const obstacleData = {
-        position,
+      // 更新リクエストを作成
+      const updateData = {
+        position: obstacle.position,
         type,
         description,
         dangerLevel,
       }
 
-      // Send the data to the API
-      const response = await obstacleApi.create(obstacleData)
+      // APIで障害物を更新
+      const response = await obstacleApi.update(obstacle.id, updateData)
 
       if (response.error) {
         setError(response.error)
         toast({
-          title: "Error",
+          title: "エラー",
           description: response.error,
           variant: "destructive"
         })
       } else if (response.data) {
-        // Handle successful creation
+        // 成功したら通知
         toast({
-          title: "Success",
-          description: "Obstacle registered successfully!",
+          title: "更新完了",
+          description: "障害物が正常に更新されました",
           variant: "default"
         })
         
-        // Call the onSubmit handler with the created obstacle
-        onSubmit(response.data)
+        // 更新された障害物を親コンポーネントに渡す
+        const updatedObstacle = {
+          ...obstacle,
+          type,
+          description,
+          dangerLevel,
+        }
+        onSubmit(updatedObstacle)
       }
     } catch (error) {
-      // Handle unexpected errors
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
+      // 予期しないエラーを処理
+      const errorMessage = error instanceof Error ? error.message : '予期しないエラーが発生しました'
       setError(errorMessage)
       toast({
-        title: "Error",
+        title: "エラー",
         description: errorMessage,
         variant: "destructive"
       })
@@ -81,7 +99,7 @@ export default function ObstacleForm({ position, onSubmit, onCancel }: ObstacleF
   return (
     <Card>
       <CardHeader>
-        <CardTitle>障害物を登録</CardTitle>
+        <CardTitle>障害物を編集</CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
@@ -94,10 +112,10 @@ export default function ObstacleForm({ position, onSubmit, onCancel }: ObstacleF
           
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
-              <span className="font-medium">緯度:</span> {position[0].toFixed(6)}
+              <span className="font-medium">緯度:</span> {obstacle.position[0].toFixed(6)}
             </div>
             <div>
-              <span className="font-medium">経度:</span> {position[1].toFixed(6)}
+              <span className="font-medium">経度:</span> {obstacle.position[1].toFixed(6)}
             </div>
           </div>
 
@@ -165,14 +183,14 @@ export default function ObstacleForm({ position, onSubmit, onCancel }: ObstacleF
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                送信中
+                更新中
               </>
             ) : (
-              "登録"
+              "更新"
             )}
           </Button>
         </CardFooter>
       </form>
     </Card>
   )
-}
+} 
