@@ -38,15 +38,31 @@ const Header: React.FC<HeaderProps> = ({ mode, onModeChange }) => {
     const { label, color, icon } = modeMeta[mode];
 
     return (
-        <header className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold">OSM 障害物登録マップ</h1>
-            <button
-                className={`px-4 py-2 rounded-md font-semibold shadow transition flex items-center gap-2 ${color}`}
-                onClick={() => onModeChange(getNextMode(mode))}
-            >
-                {icon}
-                {label}
-            </button>
+        <header className="mb-4">
+            {/* スマホ用: タイトルの下・右端にボタン */}
+            <div className="flex flex-col gap-2 sm:hidden">
+                <h1 className="text-2xl font-bold">OSM 障害物登録マップ</h1>
+                <div className="flex w-full justify-end">
+                    <button
+                        className={`max-w-xs px-4 py-2 rounded-md font-semibold shadow transition flex items-center gap-2 ${color}`}
+                        onClick={() => onModeChange(getNextMode(mode))}
+                    >
+                        {icon}
+                        {label}
+                    </button>
+                </div>
+            </div>
+            {/* PC用: 横並び */}
+            <div className="hidden sm:flex sm:flex-row sm:items-center sm:justify-between">
+                <h1 className="text-2xl font-bold">OSM 障害物登録マップ</h1>
+                <button
+                    className={`px-4 py-2 rounded-md font-semibold shadow transition flex items-center gap-2 ${color}`}
+                    onClick={() => onModeChange(getNextMode(mode))}
+                >
+                    {icon}
+                    {label}
+                </button>
+            </div>
         </header>
     );
 };
