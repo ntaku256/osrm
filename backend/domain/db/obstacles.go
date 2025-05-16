@@ -6,6 +6,6 @@ type Obstacle struct {
 	Type        int        `json:"type" dynamodbav:"type"`
 	Description string     `json:"description" dynamodbav:"description"`
 	DangerLevel int        `json:"danger_level" dynamodbav:"danger_level"`
+	ImageS3Key  string     `json:"image_s3_key" dynamodbav:"image_s3_key"`
 	CreatedAt   string     `json:"created_at" dynamodbav:"created_at"`
 }
-

@@ -24,7 +24,11 @@ const ObstacleMap = dynamic(() => import("@/components/obstacle-map"), {
   loading: () => <div className="h-[600px] bg-gray-100 flex items-center justify-center">地図を読み込み中...</div>,
 })
 
-export default function ObstacleMapContainer() {
+interface ObstacleMapContainerProps {
+  editMode: boolean;
+}
+
+export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerProps) {
   const [obstacles, setObstacles] = useState<ExtendedObstacle[]>([])
   const [selectedPosition, setSelectedPosition] = useState<[number, number] | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -68,6 +72,7 @@ export default function ObstacleMapContainer() {
   }, [toast]);
 
   const handleMapClick = async (position: [number, number]) => {
+    if (!editMode) return; // 閲覧モードなら何もしない
     setSelectedPosition(position)
     setIsFormOpen(true)
     setSelectedObstacle(null)
@@ -86,7 +91,7 @@ export default function ObstacleMapContainer() {
   const handleObstacleSubmit = (newObstacle: Obstacle) => {
     setIsFormOpen(false)
     setSelectedPosition(null)
-    
+
     // Add the new obstacle to the list
     const extendedObstacle: ExtendedObstacle = {
       ...newObstacle,
@@ -97,12 +102,12 @@ export default function ObstacleMapContainer() {
 
   const handleObstacleUpdate = (updatedObstacle: ExtendedObstacle) => {
     setIsEditFormOpen(false)
-    
+
     // Update the obstacle in the list
-    setObstacles(prev => 
+    setObstacles(prev =>
       prev.map(o => o.id === updatedObstacle.id ? updatedObstacle : o)
     )
-    
+
     // Update the selected obstacle with new data
     setSelectedObstacle(updatedObstacle)
   }
@@ -207,6 +212,53 @@ export default function ObstacleMapContainer() {
         )}
       </div>
       <div>
+        {selectedObstacle && (
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle>障害物詳細</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* 画像表示 */}
+              {selectedObstacle.imageS3Key && (
+                <img
+                  src={`https://${process.env.NEXT_PUBLIC_S3_BUCKET}.s3.${process.env.NEXT_PUBLIC_S3_REGION}.amazonaws.com/${selectedObstacle.imageS3Key}`}
+                  alt="障害物画像"
+                  className="mb-2 max-w-full max-h-48 object-contain border rounded"
+                />
+              )}
+              <div className="mb-2">
+                <span className="font-medium">種類:</span> {ObstacleType[selectedObstacle.type]}
+              </div>
+              <div className="mb-2">
+                <span className="font-medium">説明:</span> {selectedObstacle.description}
+              </div>
+              <div className="mb-2">
+                <span className="font-medium">危険度:</span> {DangerLevel[selectedObstacle.dangerLevel]}
+              </div>
+              <div className="mb-2">
+                <span className="font-medium">位置:</span> 緯度: {selectedObstacle.position[0].toFixed(6)}, 経度: {selectedObstacle.position[1].toFixed(6)}
+              </div>
+              <div className="mb-2">
+                <span className="font-medium">更新日時:</span> {new Date(selectedObstacle.createdAt).toLocaleString("ja-JP")}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setSelectedObstacle(null)}>
+                  選択解除
+                </Button>
+                {editMode && selectedObstacle.id && (
+                  <>
+                    <Button variant="default" size="icon" onClick={handleEditClick}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="destructive" size="icon" onClick={handleDeleteObstacle}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {isFormOpen && selectedPosition ? (
           <ObstacleForm
             position={selectedPosition}
@@ -220,58 +272,6 @@ export default function ObstacleMapContainer() {
             onSubmit={handleObstacleUpdate}
             onCancel={handleEditCancel}
           />
-        ) : selectedObstacle ? (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center justify-between">
-                <span>選択中の障害物</span>
-                <Badge className={getDangerLevelColor(selectedObstacle.dangerLevel)}>
-                  危険度: {DangerLevel[selectedObstacle.dangerLevel]}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-start gap-2">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white bg-blue-500 flex-shrink-0">
-                  {getObstacleTypeIcon(selectedObstacle.type)}
-                </div>
-                <div>
-                  <h3 className="font-medium">{ObstacleType[selectedObstacle.type]}</h3>
-                  <p className="text-sm text-gray-500">{selectedObstacle.description}</p>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-gray-500" />
-                  <span>
-                    緯度: {selectedObstacle.position[0].toFixed(6)}, 経度: {selectedObstacle.position[1].toFixed(6)}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-gray-500" />
-                  <span>登録日時: {new Date(selectedObstacle.createdAt).toLocaleString("ja-JP")}</span>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => setSelectedObstacle(null)}>
-                  選択解除
-                </Button>
-                {selectedObstacle.id && (
-                  <>
-                    <Button variant="default" size="icon" onClick={handleEditClick}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="destructive" size="icon" onClick={handleDeleteObstacle}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
         ) : (
           <div className="border rounded-lg p-4">
             <h2 className="text-xl font-semibold mb-4">登録済み障害物</h2>

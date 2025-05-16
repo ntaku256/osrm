@@ -13,6 +13,7 @@ import { Loader2, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
 import { obstacleApi } from "@/utils/api"
+import ObstacleImageUploader from "@/components/ObstacleImageUploader"
 
 interface ObstacleEditFormProps {
   obstacle: Obstacle & { id?: number }
@@ -72,7 +73,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: Obsta
           description: "障害物が正常に更新されました",
           variant: "default"
         })
-        
+
         // 更新された障害物を親コンポーネントに渡す
         const updatedObstacle = {
           ...obstacle,
@@ -109,7 +110,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: Obsta
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          
+
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
               <span className="font-medium">緯度:</span> {obstacle.position[0].toFixed(6)}
@@ -175,6 +176,12 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: Obsta
             </RadioGroup>
           </div>
         </CardContent>
+        {/* 画像アップロードUIを追加 */}
+        <div className="px-6 pb-4">
+          {obstacle.id && (
+            <ObstacleImageUploader obstacleId={obstacle.id} />
+          )}
+        </div>
         <CardFooter className="flex justify-between">
           <Button variant="outline" type="button" onClick={onCancel}>
             キャンセル

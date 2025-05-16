@@ -1,10 +1,11 @@
 .PHONY: \
   build \
-  fmtcheck \
-	fmtcheck-witherror \
 
-SERVICES = $(shell go list -f '{{.Dir}}' ./...)
-SRCS = $(shell git ls-files '*.go')
+format:
+	gofmt -w .
+
+lint:
+	go vet ./...
 
 # プロジェクトをデプロイ用にビルド
 build:
@@ -36,15 +37,6 @@ deploy-prd:
 # ローカル環境でapiを起動する（dockerのインストールが必要）
 start:
 	sam local start-api
-
-golangci-lint:
-	golangci-lint run -e 'pp.*|pretty.*' --timeout=1h
-
-fmtcheck:
-	@ $(foreach file,$(SRCS),gofmt -s -l $(file);)
-
-fmtcheck-witherror:
-	make -s fmtcheck | while read o; do if test $o -n; then make -s fmtcheck && exit 1; fi; done
 
 build-ObstacleFunction:
 	go build -tags netgo -o bootstrap ./handler/obstacle

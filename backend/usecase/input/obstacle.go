@@ -5,7 +5,7 @@ type ObstacleGetAll struct{}
 
 // ObstacleGetByID represents input parameters for getting an obstacle by ID
 type ObstacleGetByID struct {
-	ID string
+	ID string `json:"id" validate:"required"`
 }
 
 // ObstacleCreate represents input parameters for creating an obstacle
@@ -27,5 +27,12 @@ type ObstacleUpdate struct {
 
 // ObstacleDelete represents input parameters for deleting an obstacle
 type ObstacleDelete struct {
-	ID string
-} 
+	ID string `json:"id" validate:"required"`
+}
+
+// 画像S3キー更新用
+// ObstacleUpdateImageS3Key represents input parameters for updating image_s3_key of an obstacle
+type ObstacleUpdateImageS3Key struct {
+	ID         string `json:"id" validate:"required"`
+	ImageS3Key string `json:"image_s3_key" validate:"required"`
+}

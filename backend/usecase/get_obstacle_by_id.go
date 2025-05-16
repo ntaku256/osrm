@@ -1,41 +1,37 @@
 package usecase
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
 	"webhook/domain/db"
+	"webhook/usecase/adaptor"
 	"webhook/usecase/input"
-	"webhook/usecase/obstacle"
+	"webhook/usecase/output"
 )
 
 // GetObstacleByID retrieves a single obstacle by ID
-func GetObstacleByID(ctx interface{}, in input.ObstacleGetByID) (*obstacle.Obstacle, int, error) {
-	id, err := strconv.Atoi(in.ID)
+func GetObstacleByID(ctx context.Context, input input.ObstacleGetByID) (*output.Obstacle, int, error) {
+	id, err := strconv.Atoi(input.ID)
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
 
-	obstacleRepo := db.NewObstacleRepo()
-	obstacleDb, statusCode, err := obstacleRepo.Get(id)
+	obstacleRepo, err := db.NewObstacleRepo(ctx)
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+	obstacle, statusCode, err := obstacleRepo.Get(ctx, id)
 	if err != nil {
 		return nil, statusCode, err
 	}
 
 	// Check if the obstacle was found
-	if obstacleDb == nil {
+	if obstacle == nil {
 		return nil, http.StatusNotFound, nil
 	}
 
-	// Convert DB model to API model
-	apiObstacle := obstacle.Obstacle{
-		ID:          obstacleDb.ID,
-		Position:    obstacleDb.Position,
-		Type:        obstacleDb.Type,
-		Description: obstacleDb.Description,
-		DangerLevel: obstacleDb.DangerLevel,
-		CreatedAt:   obstacleDb.CreatedAt,
-	}
-
+	apiObstacle := adaptor.FromDBObstacle(obstacle)
 	return &apiObstacle, http.StatusOK, nil
-} 
+}

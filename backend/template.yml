@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
   obstacle-api
@@ -15,6 +15,7 @@ Globals:
       Variables:
         ENV: !Sub "${ENV}"
         OBSTACLE_TABLE_NAME: !Ref ObstacleTable
+        OBSTACLE_IMAGE_BUCKET_NAME: !Ref ObstacleImageBucket
   Api:
     # api gatewayにStageが作られるバグを回避
     # https://medium.com/veltra-engineering/avoid-aws-sam-stage-stage-45f7331b7b5d
@@ -33,7 +34,7 @@ Parameters:
 
 Conditions:
   isPrd: !Equals
-    - !Ref ENV 
+    - !Ref ENV
     - prd
 
 Resources:
@@ -88,6 +89,12 @@ Resources:
                   - dynamodb:Scan
                   - dynamodb:Query
                 Resource: !GetAtt ObstacleTable.Arn
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::${ENV}-obstacle-image-bucket/*"
 
   # API Gateway
   Api:
@@ -101,9 +108,9 @@ Resources:
           Parameters:
             Location: ./openapi.yaml # 参照するyamlファイルを指定
       Cors:
-           AllowOrigin: "'*'"
-           AllowHeaders: "'Content-Type,Authorization'"
-           AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
 
   # DynamoDB Tables
   ObstacleTable:
@@ -128,6 +135,40 @@ Resources:
       Role: !GetAtt FunctionRole.Arn
     Metadata:
       BuildMethod: makefile
+
+  ObstacleImageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ENV}-obstacle-image-bucket"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - "*"
+            AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+            MaxAge: 3000
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: false # ← これが重要
+        RestrictPublicBuckets: false
+
+  ObstacleImageBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ObstacleImageBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${ENV}-obstacle-image-bucket/*"
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function

@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
+	"webhook/domain/s3"
+	apiinput "webhook/pkg/api/input"
 	"webhook/usecase"
 	"webhook/usecase/input"
-	"webhook/usecase/obstacle"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -16,8 +18,8 @@ import (
 
 // ErrorResponse represents an API error response
 type ErrorResponse struct {
-	StatusCode int                `json:"status_code"`
-	Message    string             `json:"message"`
+	StatusCode int                 `json:"status_code"`
+	Message    string              `json:"message"`
 	Errors     map[string][]string `json:"errors,omitempty"`
 }
 
@@ -28,14 +30,14 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 	// main.go のHandleRequestメソッドに追加
 	if request.HTTPMethod == "OPTIONS" {
-	return events.APIGatewayProxyResponse{
-		StatusCode: http.StatusOK,
-		Headers: map[string]string{
-			"Access-Control-Allow-Origin": "*",
-			"Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-			"Access-Control-Allow-Headers": "Content-Type,Authorization",
-		},
-	}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: http.StatusOK,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin":  "*",
+				"Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+				"Access-Control-Allow-Headers": "Content-Type,Authorization",
+			},
+		}, nil
 	}
 
 	// Handle different HTTP methods and paths
@@ -51,7 +53,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 	// POST /obstacles - Create a new obstacle
 	case request.HTTPMethod == "POST" && request.Resource == "/obstacles":
-		var createRequest obstacle.CreateObstacleRequest
+		var createRequest apiinput.CreateObstacleRequest
 		if err := json.Unmarshal([]byte(request.Body), &createRequest); err != nil {
 			return errorResponse(http.StatusBadRequest, "Invalid request body", nil)
 		}
@@ -94,7 +96,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		idStr := request.PathParameters["id"]
 
 		// Parse the request body
-		var updateRequest obstacle.UpdateObstacleRequest
+		var updateRequest apiinput.UpdateObstacleRequest
 		if err := json.Unmarshal([]byte(request.Body), &updateRequest); err != nil {
 			return errorResponse(http.StatusBadRequest, "Invalid request body", nil)
 		}
@@ -129,10 +131,54 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		return events.APIGatewayProxyResponse{
 			StatusCode: statusCode,
 			Headers: map[string]string{
-				"Content-Type": "application/json",
+				"Content-Type":                "application/json",
 				"Access-Control-Allow-Origin": "*",
 			},
 		}, nil
+
+	// POST /obstacles/{id}/image-upload - Generate presigned URL for image upload
+	case request.HTTPMethod == "POST" && request.Resource == "/obstacles/{id}/image-upload":
+		idStr := request.PathParameters["id"]
+		var req struct {
+			Filename string `json:"filename"`
+		}
+		if err := json.Unmarshal([]byte(request.Body), &req); err != nil || req.Filename == "" {
+			return errorResponse(http.StatusBadRequest, "Invalid request body or missing filename", nil)
+		}
+
+		// s3Keyを obstacles/{id}_{filename} 形式で生成
+		s3Key := fmt.Sprintf("obstacles/%s_%s", idStr, req.Filename)
+
+		s3Repo, err := s3.NewS3Repo()
+		if err != nil {
+			return errorResponse(http.StatusInternalServerError, "Failed to create S3 repository", nil)
+		}
+
+		url, err := s3Repo.GeneratePresignedPUTURL(s3Key)
+		if err != nil {
+			return errorResponse(http.StatusInternalServerError, "Failed to generate presigned URL", nil)
+		}
+		return jsonResponse(http.StatusOK, map[string]string{"url": url, "image_s3_key": s3Key})
+
+	// PUT /obstacles/{id}/image - Save image_s3_key to obstacle
+	case request.HTTPMethod == "PUT" && request.Resource == "/obstacles/{id}/image":
+		idStr := request.PathParameters["id"]
+		var req struct {
+			ImageS3Key string `json:"image_s3_key"`
+		}
+		if err := json.Unmarshal([]byte(request.Body), &req); err != nil || req.ImageS3Key == "" {
+			return errorResponse(http.StatusBadRequest, "Invalid request body or missing image_s3_key", nil)
+		}
+
+		input := input.ObstacleUpdateImageS3Key{
+			ID:         idStr,
+			ImageS3Key: req.ImageS3Key,
+		}
+		updatedObstacle, statusCode, err := usecase.UpdateObstacleImageS3Key(ctx, input)
+		if err != nil {
+			return errorResponse(statusCode, err.Error(), nil)
+		}
+		return jsonResponse(statusCode, updatedObstacle)
 
 	default:
 		return errorResponse(http.StatusNotFound, "Not Found", nil)
@@ -148,7 +194,7 @@ func jsonResponse(statusCode int, data interface{}) (events.APIGatewayProxyRespo
 	return events.APIGatewayProxyResponse{
 		StatusCode: statusCode,
 		Headers: map[string]string{
-			"Content-Type": "application/json",
+			"Content-Type":                "application/json",
 			"Access-Control-Allow-Origin": "*",
 		},
 		Body: string(body),
@@ -170,9 +216,8 @@ func errorResponse(statusCode int, message string, errors map[string][]string) (
 	return events.APIGatewayProxyResponse{
 		StatusCode: statusCode,
 		Headers: map[string]string{
-			"Content-Type": "application/json",
+			"Content-Type":                "application/json",
 			"Access-Control-Allow-Origin": "*",
-
 		},
 		Body: string(body),
 	}, nil
@@ -180,4 +225,4 @@ func errorResponse(statusCode int, message string, errors map[string][]string) (
 
 func main() {
 	lambda.Start(HandleRequest)
-} 
+}
