@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { MapPin, Calendar, Trash2, Edit } from "lucide-react"
 import { obstacleApi } from "@/utils/api"
 import { useToast } from "@/components/ui/use-toast"
+import { getNearestRoad } from "@/utils/osrm"
 
 // Update Obstacle type to include id for API interaction
 interface ExtendedObstacle extends Obstacle {
@@ -31,6 +32,10 @@ export default function ObstacleMapContainer() {
   const [selectedObstacle, setSelectedObstacle] = useState<ExtendedObstacle | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
+  const [nearestRoad, setNearestRoad] = useState<any | null>(null)
+  const [highlightedPolyline, setHighlightedPolyline] = useState<[number, number][] | null>(null)
+  const [highlightedNode, setHighlightedNode] = useState<[number, number] | null>(null)
+  const [highlightedSegmentDistance, setHighlightedSegmentDistance] = useState<number | null>(null)
 
   // Fetch obstacles on component mount
   useEffect(() => {
@@ -62,11 +67,20 @@ export default function ObstacleMapContainer() {
     fetchObstacles();
   }, [toast]);
 
-  const handleMapClick = (position: [number, number]) => {
+  const handleMapClick = async (position: [number, number]) => {
     setSelectedPosition(position)
     setIsFormOpen(true)
-    // Clear selection when adding a new obstacle
     setSelectedObstacle(null)
+    setNearestRoad(null)
+    setHighlightedPolyline(null)
+    setHighlightedNode(null)
+    setHighlightedSegmentDistance(null)
+
+    const nearest = await getNearestRoad(position)
+    setNearestRoad(nearest)
+    if (nearest && nearest.location) {
+      setHighlightedNode(nearest.location)
+    }
   }
 
   const handleObstacleSubmit = (newObstacle: Obstacle) => {
@@ -106,9 +120,18 @@ export default function ObstacleMapContainer() {
     setIsEditFormOpen(true)
   }
 
-  const handleObstacleSelect = (obstacle: ExtendedObstacle | null) => {
+  const handleObstacleSelect = async (obstacle: ExtendedObstacle | null) => {
     setSelectedObstacle(obstacle)
     setIsEditFormOpen(false)
+    setHighlightedPolyline(null)
+    setHighlightedNode(null)
+    setHighlightedSegmentDistance(null)
+    if (obstacle) {
+      const nearest = await getNearestRoad(obstacle.position)
+      if (nearest && nearest.location) {
+        setHighlightedNode(nearest.location)
+      }
+    }
   }
 
   const handleDeleteObstacle = async () => {
@@ -173,13 +196,21 @@ export default function ObstacleMapContainer() {
             selectedPosition={selectedPosition}
             selectedObstacle={selectedObstacle}
             onObstacleSelect={handleObstacleSelect}
+            highlightedPolyline={highlightedPolyline}
+            highlightedNode={highlightedNode}
           />
+        )}
+        {highlightedSegmentDistance && (
+          <div className="p-2 bg-orange-50 rounded text-sm text-orange-900 border border-orange-200 mb-2">
+            区間の長さ: {highlightedSegmentDistance.toFixed(1)} m
+          </div>
         )}
       </div>
       <div>
         {isFormOpen && selectedPosition ? (
           <ObstacleForm
             position={selectedPosition}
+            nearestRoad={nearestRoad}
             onSubmit={handleObstacleSubmit}
             onCancel={handleFormCancel}
           />

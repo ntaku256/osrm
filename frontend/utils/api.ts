@@ -7,6 +7,8 @@ interface CreateObstacleRequest {
   type: number;
   description: string;
   dangerLevel: number;
+  nodes?: [number, number];
+  nearestDistance?: number;
 }
 
 interface UpdateObstacleRequest {
@@ -14,6 +16,8 @@ interface UpdateObstacleRequest {
   type: number;
   description: string;
   dangerLevel: number;
+  nodes?: [number, number];
+  nearestDistance?: number;
 }
 
 interface ListObstacleResponse {

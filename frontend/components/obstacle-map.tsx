@@ -22,6 +22,8 @@ interface ObstacleMapProps {
   selectedPosition: [number, number] | null
   selectedObstacle: Obstacle | null
   onObstacleSelect: (obstacle: Obstacle | null) => void
+  highlightedPolyline?: [number, number][] | null
+  highlightedNode?: [number, number] | null
 }
 
 export default function ObstacleMap({
@@ -30,6 +32,8 @@ export default function ObstacleMap({
   selectedPosition,
   selectedObstacle,
   onObstacleSelect,
+  highlightedPolyline,
+  highlightedNode,
 }: ObstacleMapProps) {
   const mapRef = useRef(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -306,10 +310,31 @@ export default function ObstacleMap({
           tempMarkerRef.current = null
         }
       }
+
+      // ハイライトpolylineの描画
+      if (highlightedPolyline && highlightedPolyline.length > 1) {
+        L.polyline(highlightedPolyline, {
+          color: 'orange',
+          weight: 7,
+          opacity: 0.8,
+          dashArray: '8,6',
+        }).addTo(highlightLayerRef.current)
+      }
+
+      // ノードのハイライト
+      if (highlightedNode) {
+        L.circleMarker(highlightedNode, {
+          color: 'red',
+          radius: 10,
+          weight: 3,
+          fillColor: 'yellow',
+          fillOpacity: 0.8,
+        }).addTo(highlightLayerRef.current)
+      }
     } catch (error) {
       console.error("Failed to update selection:", error)
     }
-  }, [selectedPosition, mapReady])
+  }, [selectedPosition, mapReady, highlightedPolyline, highlightedNode])
 
   // 選択された障害物が変更されたときにマップを更新
   useEffect(() => {

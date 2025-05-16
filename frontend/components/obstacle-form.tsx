@@ -17,11 +17,12 @@ import { obstacleApi } from "@/utils/api"
 
 interface ObstacleFormProps {
   position: [number, number]
+  nearestRoad: any | null
   onSubmit: (obstacle: Obstacle) => void
   onCancel: () => void
 }
 
-export default function ObstacleForm({ position, onSubmit, onCancel }: ObstacleFormProps) {
+export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel }: ObstacleFormProps) {
   const [type, setType] = useState<ObstacleType>(ObstacleType.OTHER)
   const [description, setDescription] = useState("")
   const [dangerLevel, setDangerLevel] = useState<DangerLevel>(DangerLevel.MEDIUM)
@@ -35,12 +36,18 @@ export default function ObstacleForm({ position, onSubmit, onCancel }: ObstacleF
     setError(null)
 
     try {
-      // Create the request body according to API expectations
+      let nodes: [number, number] | undefined = undefined
+      if (nearestRoad?.nodes && nearestRoad.nodes.length >= 2) {
+        const sorted = [...nearestRoad.nodes].sort((a, b) => a - b)
+        nodes = [sorted[0], sorted[1]]
+      }
       const obstacleData = {
         position,
         type,
         description,
         dangerLevel,
+        nodes,
+        nearestDistance: nearestRoad?.distance !== undefined ? nearestRoad.distance : undefined,
       }
 
       // Send the data to the API
@@ -85,6 +92,17 @@ export default function ObstacleForm({ position, onSubmit, onCancel }: ObstacleF
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
+          {nearestRoad && (
+            <div className="p-2 bg-blue-50 rounded text-sm text-blue-900 border border-blue-200 mb-2">
+              <div>最寄り道路: <span className="font-semibold">{nearestRoad.name}</span></div>
+              <div>距離: {nearestRoad.distance ? nearestRoad.distance.toFixed(1) : "-"} m</div>
+            </div>
+          )}
+          {!nearestRoad && (
+            <div className="p-2 bg-gray-50 rounded text-sm text-gray-600 border border-gray-200 mb-2">
+              最寄り道路が見つかりませんでした
+            </div>
+          )}
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />

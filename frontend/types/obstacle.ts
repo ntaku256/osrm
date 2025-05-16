@@ -18,5 +18,7 @@ export interface Obstacle {
   type: ObstacleType
   description: string
   dangerLevel: DangerLevel
+  nodes: [number, number]
+  nearestDistance: number
   createdAt: string // ISO date string
 }
