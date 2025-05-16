@@ -180,7 +180,18 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: Obsta
         <div className="px-6 pb-4 space-y-2">
           <Label className="font-medium">画像</Label>
           {obstacle.id && (
-            <ObstacleImageUploader obstacleId={obstacle.id} />
+            <ObstacleImageUploader
+              obstacleId={obstacle.id}
+              onUploaded={(_imageS3Key, updatedObstacle) => {
+                if (!updatedObstacle) return;
+                // image_s3_keyとcreatedAtを更新し、onSubmitで親に伝える
+                onSubmit({
+                  ...obstacle,
+                  image_s3_key: updatedObstacle.image_s3_key,
+                  createdAt: updatedObstacle.createdAt,
+                });
+              }}
+            />
           )}
         </div>
         <CardFooter className="flex justify-between">

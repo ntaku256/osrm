@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"time"
 
 	"webhook/domain/db"
 	"webhook/domain/s3"
@@ -41,6 +42,7 @@ func UpdateObstacleImageS3Key(ctx context.Context, input input.ObstacleUpdateIma
 	}
 
 	ob.ImageS3Key = input.ImageS3Key
+	ob.CreatedAt = time.Now().Format(time.RFC3339)
 	statusCode, err = obstacleRepo.CreateOrUpdate(ctx, ob)
 	if err != nil {
 		return nil, statusCode, err

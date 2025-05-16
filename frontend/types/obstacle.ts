@@ -21,5 +21,5 @@ export interface Obstacle {
   nodes: [number, number]
   nearestDistance: number
   createdAt: string // ISO date string
-  imageS3Key?: string
+  image_s3_key?: string
 }

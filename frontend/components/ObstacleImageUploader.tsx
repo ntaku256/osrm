@@ -4,7 +4,7 @@ import { UploadCloud, X } from "lucide-react";
 
 interface Props {
     obstacleId: string | number;
-    onUploaded?: (imageS3Key: string) => void;
+    onUploaded?: (imageS3Key: string, updatedObstacle?: any) => void;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
@@ -114,7 +114,8 @@ const ObstacleImageUploader: React.FC<Props> = ({ obstacleId, onUploaded }) => {
             });
             if (!saveRes.ok) throw new Error("画像キー保存失敗");
 
-            if (onUploaded) onUploaded(image_s3_key);
+            const updatedObstacle = await saveRes.json();
+            if (onUploaded) onUploaded(image_s3_key, updatedObstacle);
             alert("画像アップロード成功");
         } catch (e: any) {
             setError(e.message || "アップロード失敗");

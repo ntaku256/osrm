@@ -46,16 +46,15 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	case request.HTTPMethod == "GET" && request.Resource == "/obstacles":
 		response, statusCode, err := usecase.GetObstacles(ctx, input.ObstacleGetAll{})
 		if err != nil {
-			return errorResponse(statusCode, err.Error(), nil)
+			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}
-
 		return jsonResponse(statusCode, response)
 
 	// POST /obstacles - Create a new obstacle
 	case request.HTTPMethod == "POST" && request.Resource == "/obstacles":
 		var createRequest apiinput.CreateObstacleRequest
 		if err := json.Unmarshal([]byte(request.Body), &createRequest); err != nil {
-			return errorResponse(http.StatusBadRequest, "Invalid request body", nil)
+			return errorResponse(logger, request, http.StatusBadRequest, "Invalid request body", nil, err)
 		}
 
 		input := input.ObstacleCreate{
@@ -67,7 +66,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 		createdObstacle, statusCode, err := usecase.CreateObstacle(ctx, input)
 		if err != nil {
-			return errorResponse(statusCode, err.Error(), nil)
+			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}
 
 		return jsonResponse(statusCode, createdObstacle)
@@ -81,12 +80,12 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 		foundObstacle, statusCode, err := usecase.GetObstacleByID(ctx, input)
 		if err != nil {
-			return errorResponse(statusCode, err.Error(), nil)
+			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}
 
 		// Check if the obstacle was found
 		if foundObstacle == nil {
-			return errorResponse(http.StatusNotFound, "Obstacle not found", nil)
+			return errorResponse(logger, request, http.StatusNotFound, "Obstacle not found", nil, nil)
 		}
 
 		return jsonResponse(statusCode, foundObstacle)
@@ -98,7 +97,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		// Parse the request body
 		var updateRequest apiinput.UpdateObstacleRequest
 		if err := json.Unmarshal([]byte(request.Body), &updateRequest); err != nil {
-			return errorResponse(http.StatusBadRequest, "Invalid request body", nil)
+			return errorResponse(logger, request, http.StatusBadRequest, "Invalid request body", nil, err)
 		}
 
 		input := input.ObstacleUpdate{
@@ -111,7 +110,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 		updatedObstacle, statusCode, err := usecase.UpdateObstacle(ctx, input)
 		if err != nil {
-			return errorResponse(statusCode, err.Error(), nil)
+			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}
 
 		return jsonResponse(statusCode, updatedObstacle)
@@ -125,7 +124,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 		statusCode, err := usecase.DeleteObstacle(ctx, input)
 		if err != nil {
-			return errorResponse(statusCode, err.Error(), nil)
+			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}
 
 		return events.APIGatewayProxyResponse{
@@ -143,7 +142,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			Filename string `json:"filename"`
 		}
 		if err := json.Unmarshal([]byte(request.Body), &req); err != nil || req.Filename == "" {
-			return errorResponse(http.StatusBadRequest, "Invalid request body or missing filename", nil)
+			return errorResponse(logger, request, http.StatusBadRequest, "Invalid request body or missing filename", nil, err)
 		}
 
 		// s3Keyを obstacles/{id}_{filename} 形式で生成
@@ -151,12 +150,12 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 		s3Repo, err := s3.NewS3Repo()
 		if err != nil {
-			return errorResponse(http.StatusInternalServerError, "Failed to create S3 repository", nil)
+			return errorResponse(logger, request, http.StatusInternalServerError, "Failed to create S3 repository", nil, err)
 		}
 
 		url, err := s3Repo.GeneratePresignedPUTURL(s3Key)
 		if err != nil {
-			return errorResponse(http.StatusInternalServerError, "Failed to generate presigned URL", nil)
+			return errorResponse(logger, request, http.StatusInternalServerError, "Failed to generate presigned URL", nil, err)
 		}
 		return jsonResponse(http.StatusOK, map[string]string{"url": url, "image_s3_key": s3Key})
 
@@ -167,7 +166,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			ImageS3Key string `json:"image_s3_key"`
 		}
 		if err := json.Unmarshal([]byte(request.Body), &req); err != nil || req.ImageS3Key == "" {
-			return errorResponse(http.StatusBadRequest, "Invalid request body or missing image_s3_key", nil)
+			return errorResponse(logger, request, http.StatusBadRequest, "Invalid request body or missing image_s3_key", nil, err)
 		}
 
 		input := input.ObstacleUpdateImageS3Key{
@@ -176,19 +175,26 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		}
 		updatedObstacle, statusCode, err := usecase.UpdateObstacleImageS3Key(ctx, input)
 		if err != nil {
-			return errorResponse(statusCode, err.Error(), nil)
+			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}
 		return jsonResponse(statusCode, updatedObstacle)
 
 	default:
-		return errorResponse(http.StatusNotFound, "Not Found", nil)
+		return errorResponse(logger, request, http.StatusNotFound, "Not Found", nil, nil)
 	}
 }
 
 func jsonResponse(statusCode int, data interface{}) (events.APIGatewayProxyResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
-		return events.APIGatewayProxyResponse{}, err
+		return events.APIGatewayProxyResponse{
+			StatusCode: http.StatusInternalServerError,
+			Headers: map[string]string{
+				"Content-Type":                "application/json",
+				"Access-Control-Allow-Origin": "*",
+			},
+			Body: err.Error(),
+		}, err
 	}
 
 	return events.APIGatewayProxyResponse{
@@ -201,16 +207,33 @@ func jsonResponse(statusCode int, data interface{}) (events.APIGatewayProxyRespo
 	}, nil
 }
 
-func errorResponse(statusCode int, message string, errors map[string][]string) (events.APIGatewayProxyResponse, error) {
+func errorResponse(logger *zap.Logger, request events.APIGatewayProxyRequest, statusCode int, message string, errors map[string][]string, err error) (events.APIGatewayProxyResponse, error) {
+	logger.Error("API error",
+		zap.String("path", request.Path),
+		zap.String("resource", request.Resource),
+		zap.String("method", request.HTTPMethod),
+		zap.Int("status", statusCode),
+		zap.String("message", message),
+		zap.Any("errors", errors),
+		zap.Error(err),
+	)
+
 	errorResp := ErrorResponse{
 		StatusCode: statusCode,
 		Message:    message,
 		Errors:     errors,
 	}
 
-	body, err := json.Marshal(errorResp)
-	if err != nil {
-		return events.APIGatewayProxyResponse{}, err
+	body, err2 := json.Marshal(errorResp)
+	if err2 != nil {
+		return events.APIGatewayProxyResponse{
+			StatusCode: http.StatusInternalServerError,
+			Headers: map[string]string{
+				"Content-Type":                "application/json",
+				"Access-Control-Allow-Origin": "*",
+			},
+			Body: err2.Error(),
+		}, err2
 	}
 
 	return events.APIGatewayProxyResponse{

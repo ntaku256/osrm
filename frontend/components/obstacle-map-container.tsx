@@ -236,11 +236,11 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
             </CardHeader>
             <CardContent>
               {/* 画像表示 */}
-              {selectedObstacle.imageS3Key && (
+              {selectedObstacle.image_s3_key && (
                 <img
-                  src={`https://${process.env.NEXT_PUBLIC_S3_BUCKET}.s3.${process.env.NEXT_PUBLIC_S3_REGION}.amazonaws.com/${selectedObstacle.imageS3Key}`}
+                  src={`https://${process.env.NEXT_PUBLIC_S3_BUCKET}.s3.${process.env.NEXT_PUBLIC_S3_REGION}.amazonaws.com/${selectedObstacle.image_s3_key}?t=${selectedObstacle.createdAt ? new Date(selectedObstacle.createdAt).getTime() : ''}`}
                   alt="障害物画像"
-                  className="mb-2 max-w-full max-h-48 object-contain border rounded"
+                  className="mb-2 max-w-full max-h-96 object-contain border rounded"
                 />
               )}
               <div className="mb-2">
