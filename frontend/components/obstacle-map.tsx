@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { type Obstacle, DangerLevel, ObstacleType } from "@/types/obstacle"
+import type { MapMode } from "@/app/content"
 
 // Fix Leaflet icon issues
 const fixLeafletIcon = () => {
@@ -17,6 +18,7 @@ const fixLeafletIcon = () => {
 }
 
 interface ObstacleMapProps {
+  mode: MapMode
   obstacles: Obstacle[]
   onMapClick: (position: [number, number]) => void
   selectedPosition: [number, number] | null
@@ -27,6 +29,7 @@ interface ObstacleMapProps {
 }
 
 export default function ObstacleMap({
+  mode,
   obstacles,
   onMapClick,
   selectedPosition,
@@ -49,6 +52,12 @@ export default function ObstacleMap({
   const [isLoadingGeoJson, setIsLoadingGeoJson] = useState(false)
   const [selectedArea, setSelectedArea] = useState<string | null>(null)
   const [areaDetails, setAreaDetails] = useState<Record<string, any> | null>(null)
+
+  // modeの最新値を参照するためのref
+  const modeRef = useRef(mode)
+  useEffect(() => {
+    modeRef.current = mode
+  }, [mode])
 
   // マップの初期化
   useEffect(() => {
@@ -81,8 +90,10 @@ export default function ObstacleMap({
         highlightLayerRef.current = L.layerGroup().addTo(map)
 
         map.on("click", (e) => {
-          const { lat, lng } = e.latlng
-          onMapClick([lat, lng])
+          if (modeRef.current === "create") {
+            const { lat, lng } = e.latlng
+            onMapClick([lat, lng])  
+          }
           // 地図をクリックしたときに選択を解除
           onObstacleSelect(null)
         })
@@ -240,19 +251,24 @@ export default function ObstacleMap({
 
         const marker = L.marker(obstacle.position, {
           icon: markerIcon,
-          title: ObstacleType[obstacle.type],
+          title: getObstacleType(obstacle.type),
           alt: `障害物: ${ObstacleType[obstacle.type]}`,
+          interactive: modeRef.current !== "create",
         })
 
-        marker.on("click", (e) => {
-          L.DomEvent.stopPropagation(e)
-          onObstacleSelect(obstacle)
-        })
+        marker.off("click"); // 既存のクリックイベントを必ず解除
+        // modeがcreate以外のときだけクリックイベントを登録
+        if (modeRef.current !== "create") {
+          marker.on("click", (e) => {
+            L.DomEvent.stopPropagation(e)
+            onObstacleSelect(obstacle)
+          })
+        }
 
         // ダウンスケールの問題を避けるため、ポップアップではなくツールチップを使用
         marker.bindTooltip(
           `<div>
-            <strong>${ObstacleType[obstacle.type]}</strong><br>
+            <strong>${getObstacleType(obstacle.type)}</strong><br>
             ${obstacle.description}
           </div>`,
           { direction: "top", offset: [0, -5] }
@@ -341,8 +357,8 @@ export default function ObstacleMap({
     if (!mapReady || !mapRef.current || !selectedObstacle) return
 
     try {
-      // マップを選択された障害物の位置に移動
-      mapRef.current.setView(selectedObstacle.position, 17)
+      // マップを選択された障害物の位置に移動（ズームレベルは変更しない）
+      mapRef.current.panTo(selectedObstacle.position)
 
       // マーカーを更新して選択状態を反映
       obstacles.forEach((obstacle) => {
@@ -462,6 +478,26 @@ function getObstacleTypeIcon(type: ObstacleType): string {
       return "↔️"
     case ObstacleType.OTHER:
       return "❓"
+    default:
+      return "•"
+  }
+}
+
+// 障害物タイプに応じたアイコンを返す
+function getObstacleType(type: ObstacleType): string {
+  switch (type) {
+    case ObstacleType.BLOCK_WALL:
+      return "ブロック塀"
+    case ObstacleType.VENDING_MACHINE:
+      return "自動販売機"
+    case ObstacleType.STAIRS:
+      return "階段"
+    case ObstacleType.STEEP_SLOPES:
+      return "急な坂"
+    case ObstacleType.NARROW_ROADS:
+      return "↔狭い道"
+    case ObstacleType.OTHER:
+      return "その他"
     default:
       return "•"
   }

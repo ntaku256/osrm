@@ -12,6 +12,8 @@ import { MapPin, Calendar, Trash2, Edit } from "lucide-react"
 import { obstacleApi } from "@/utils/api"
 import { useToast } from "@/components/ui/use-toast"
 import { getNearestRoad } from "@/utils/osrm"
+import type { MapMode } from "@/app/content"
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 // Update Obstacle type to include id for API interaction
 interface ExtendedObstacle extends Obstacle {
@@ -25,10 +27,10 @@ const ObstacleMap = dynamic(() => import("@/components/obstacle-map"), {
 })
 
 interface ObstacleMapContainerProps {
-  editMode: boolean;
+  mode: MapMode;
 }
 
-export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerProps) {
+export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps) {
   const [obstacles, setObstacles] = useState<ExtendedObstacle[]>([])
   const [selectedPosition, setSelectedPosition] = useState<[number, number] | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -40,6 +42,15 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
   const [highlightedPolyline, setHighlightedPolyline] = useState<[number, number][] | null>(null)
   const [highlightedNode, setHighlightedNode] = useState<[number, number] | null>(null)
   const [highlightedSegmentDistance, setHighlightedSegmentDistance] = useState<number | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // modeがcreate以外になったら選択位置をリセット
+  useEffect(() => {
+    if (mode !== "create") {
+      setSelectedPosition(null);
+      setHighlightedNode(null);
+    }
+  }, [mode]);
 
   // Fetch obstacles on component mount
   useEffect(() => {
@@ -54,6 +65,7 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
             title: "エラー",
             description: "障害物の取得に失敗しました: " + response.error,
             variant: "destructive",
+            duration: 3000,
           });
         }
       } catch (error) {
@@ -62,6 +74,7 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
           title: "エラー",
           description: "障害物の取得中にエラーが発生しました",
           variant: "destructive",
+          duration: 3000,
         });
       } finally {
         setIsLoading(false);
@@ -72,7 +85,6 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
   }, [toast]);
 
   const handleMapClick = async (position: [number, number]) => {
-    if (!editMode) return; // 閲覧モードなら何もしない
     setSelectedPosition(position)
     setIsFormOpen(true)
     setSelectedObstacle(null)
@@ -115,6 +127,7 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
   const handleFormCancel = () => {
     setIsFormOpen(false)
     setSelectedPosition(null)
+    setHighlightedNode(null)
   }
 
   const handleEditCancel = () => {
@@ -145,10 +158,10 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
         title: "エラー",
         description: "この障害物は削除できません (IDが見つかりません)",
         variant: "destructive",
+        duration: 3000,
       });
       return;
     }
-
     try {
       const response = await obstacleApi.delete(selectedObstacle.id);
       if (!response.error) {
@@ -157,12 +170,14 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
         toast({
           title: "削除完了",
           description: "障害物が正常に削除されました",
+          duration: 3000,
         });
       } else {
         toast({
           title: "エラー",
           description: "障害物の削除に失敗しました: " + response.error,
           variant: "destructive",
+          duration: 3000,
         });
       }
     } catch (error) {
@@ -171,6 +186,7 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
         title: "エラー",
         description: "障害物の削除中にエラーが発生しました",
         variant: "destructive",
+        duration: 3000,
       });
     }
   };
@@ -196,6 +212,7 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
           <div className="h-[600px] bg-gray-100 flex items-center justify-center">障害物データを読み込み中...</div>
         ) : (
           <ObstacleMap
+            mode={mode}
             obstacles={obstacles}
             onMapClick={handleMapClick}
             selectedPosition={selectedPosition}
@@ -212,7 +229,7 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
         )}
       </div>
       <div>
-        {selectedObstacle && (
+        {selectedObstacle && !(mode === "edit" && isEditFormOpen) && (
           <Card className="mb-4">
             <CardHeader>
               <CardTitle>障害物詳細</CardTitle>
@@ -227,46 +244,66 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
                 />
               )}
               <div className="mb-2">
-                <span className="font-medium">種類:</span> {ObstacleType[selectedObstacle.type]}
+                <span className="font-medium">種類:</span> {getObstacleTypeIcon(selectedObstacle.type)}
               </div>
               <div className="mb-2">
                 <span className="font-medium">説明:</span> {selectedObstacle.description}
               </div>
               <div className="mb-2">
-                <span className="font-medium">危険度:</span> {DangerLevel[selectedObstacle.dangerLevel]}
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">危険度:</span> 
+                  <div className={`w-4 h-4 rounded-full ${getDangerLevelBg(selectedObstacle.dangerLevel)}`}></div> 
+                  {DangerLevel[selectedObstacle.dangerLevel]}
+                </div>
               </div>
               <div className="mb-2">
-                <span className="font-medium">位置:</span> 緯度: {selectedObstacle.position[0].toFixed(6)}, 経度: {selectedObstacle.position[1].toFixed(6)}
+                <span className="font-medium">緯度:</span> {selectedObstacle.position[0].toFixed(6)}
+              </div>
+              <div className="mb-2">
+                <span className="font-medium">経度:</span> {selectedObstacle.position[1].toFixed(6)}
               </div>
               <div className="mb-2">
                 <span className="font-medium">更新日時:</span> {new Date(selectedObstacle.createdAt).toLocaleString("ja-JP")}
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => setSelectedObstacle(null)}>
-                  選択解除
-                </Button>
-                {editMode && selectedObstacle.id && (
-                  <>
-                    <Button variant="default" size="icon" onClick={handleEditClick}>
-                      <Edit className="h-4 w-4" />
+              <div className="flex flex-col gap-2">
+                {mode === "edit" && selectedObstacle.id && (
+                  <div className="flex justify-between gap-2">
+                    <Button
+                      variant="default"
+                      className="flex-1 min-w-[100px] px-6"
+                      onClick={handleEditClick}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      編集
                     </Button>
-                    <Button variant="destructive" size="icon" onClick={handleDeleteObstacle}>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => setShowDeleteDialog(true)}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                  </>
+                  </div>
                 )}
+                <Button
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => setSelectedObstacle(null)}
+                >
+                  選択解除
+                </Button>
               </div>
             </CardContent>
           </Card>
         )}
-        {isFormOpen && selectedPosition ? (
+        {mode === "create" && isFormOpen && selectedPosition ? (
           <ObstacleForm
             position={selectedPosition}
             nearestRoad={nearestRoad}
             onSubmit={handleObstacleSubmit}
             onCancel={handleFormCancel}
           />
-        ) : isEditFormOpen && selectedObstacle ? (
+        ) : mode === "edit" && isEditFormOpen && selectedObstacle ? (
           <ObstacleEditForm
             obstacle={selectedObstacle}
             onSubmit={handleObstacleUpdate}
@@ -284,10 +321,12 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
                     onClick={() => setSelectedObstacle(obstacle)}
                   >
                     <div className="flex items-center gap-2">
-                      <div className={`w-4 h-4 rounded-full ${getDangerLevelBg(obstacle.dangerLevel)}`}></div>
-                      <div className="font-medium">{ObstacleType[obstacle.type]}</div>
+                      <div className="font-medium">{getObstacleTypeIcon(obstacle.type)}</div>
                     </div>
-                    <div className="text-sm text-gray-500">危険度: {DangerLevel[obstacle.dangerLevel]}</div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-4 h-4 rounded-full ${getDangerLevelBg(obstacle.dangerLevel)}`}></div>
+                      <div className="text-sm text-gray-500">危険度: {DangerLevel[obstacle.dangerLevel]}</div>
+                    </div>
                     <div className="text-sm truncate">{obstacle.description}</div>
                   </li>
                 ))}
@@ -298,6 +337,31 @@ export default function ObstacleMapContainer({ editMode }: ObstacleMapContainerP
           </div>
         )}
       </div>
+      {/* 削除確認ダイアログ */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>本当に削除しますか？</DialogTitle>
+            <DialogDescription>
+              この操作は取り消せません。障害物を削除してもよろしいですか？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              キャンセル
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                setShowDeleteDialog(false);
+                await handleDeleteObstacle();
+              }}
+            >
+              削除する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -320,17 +384,17 @@ function getDangerLevelBg(level: DangerLevel): string {
 function getObstacleTypeIcon(type: ObstacleType): string {
   switch (type) {
     case ObstacleType.BLOCK_WALL:
-      return "🧱"
+      return "🧱ブロック塀"
     case ObstacleType.VENDING_MACHINE:
-      return "🥤"
+      return "🥤自動販売機"
     case ObstacleType.STAIRS:
-      return "🪜"
+      return "🪜階段"
     case ObstacleType.STEEP_SLOPES:
-      return "⛰️"
+      return "⛰️急な坂"
     case ObstacleType.NARROW_ROADS:
-      return "↔️"
+      return "↔️狭い道"
     case ObstacleType.OTHER:
-      return "❓"
+      return "❓その他"
     default:
       return "•"
   }

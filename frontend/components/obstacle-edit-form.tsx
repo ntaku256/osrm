@@ -177,7 +177,8 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: Obsta
           </div>
         </CardContent>
         {/* 画像アップロードUIを追加 */}
-        <div className="px-6 pb-4">
+        <div className="px-6 pb-4 space-y-2">
+          <Label className="font-medium">画像</Label>
           {obstacle.id && (
             <ObstacleImageUploader obstacleId={obstacle.id} />
           )}
