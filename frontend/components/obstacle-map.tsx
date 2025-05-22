@@ -135,7 +135,7 @@ export default function ObstacleMap({
           setIsLoadingGeoJson(true)
           
           // GeoJSONファイルを読み込む
-          const response = await fetch('/gsi2025051418371341.geojson')
+          const response = await fetch('/gsi20250522123852657.geojson')
           const geoJsonData = await response.json()
 
           // GeoJSONレイヤーを作成して地図に追加
