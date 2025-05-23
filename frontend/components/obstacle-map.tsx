@@ -82,8 +82,10 @@ export default function ObstacleMap({
         // ズームコントロールを別途追加（位置を指定）
         L.control.zoom({ position: "topright" }).addTo(map)
 
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
+          attribution: '地図データ：<a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>',
+          maxZoom: 18,
+          minZoom: 5,
         }).addTo(map)
 
         markersLayerRef.current = L.layerGroup().addTo(map)
@@ -92,7 +94,7 @@ export default function ObstacleMap({
         map.on("click", (e) => {
           if (modeRef.current === "create") {
             const { lat, lng } = e.latlng
-            onMapClick([lat, lng])  
+            onMapClick([lat, lng])
           }
           // 地図をクリックしたときに選択を解除
           onObstacleSelect(null)
@@ -133,7 +135,7 @@ export default function ObstacleMap({
 
         if (showGeoJson) {
           setIsLoadingGeoJson(true)
-          
+
           // GeoJSONファイルを読み込む
           const response = await fetch('/gsi20250522123852657.geojson')
           const geoJsonData = await response.json()
@@ -158,18 +160,18 @@ export default function ObstacleMap({
                   .filter(([key]) => !key.startsWith('_'))
                   .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
                   .join('<br>')
-                
+
                 if (displayProps) {
                   layer.bindPopup(displayProps)
                 }
-                
+
                 // クリックイベントを追加
                 layer.on({
                   click: (e) => {
                     L.DomEvent.stopPropagation(e)
                     const props = feature.properties || {}
                     setSelectedArea(props.name || "不明なエリア")
-                    
+
                     // スタイル設定を除外したプロパティを詳細として保存
                     const details = Object.fromEntries(
                       Object.entries(props).filter(([key]) => !key.startsWith('_'))
@@ -238,11 +240,10 @@ export default function ObstacleMap({
         // 選択状態に応じたマーカーアイコンを作成
         const markerIcon = L.divIcon({
           className: "obstacle-marker",
-          html: `<div class="w-6 h-6 rounded-full flex items-center justify-center text-white ${
-            isSelected
-              ? "bg-yellow-500 border-2 border-white shadow-lg transform scale-125"
-              : getDangerLevelColor(obstacle.dangerLevel)
-          }">
+          html: `<div class="w-6 h-6 rounded-full flex items-center justify-center text-white ${isSelected
+            ? "bg-yellow-500 border-2 border-white shadow-lg transform scale-125"
+            : getDangerLevelColor(obstacle.dangerLevel)
+            }">
             ${getObstacleTypeIcon(obstacle.type)}
           </div>`,
           iconSize: [24, 24],
@@ -414,12 +415,11 @@ export default function ObstacleMap({
           <button
             onClick={() => setShowGeoJson(!showGeoJson)}
             disabled={isLoadingGeoJson}
-            className={`px-4 py-2 rounded-md shadow-sm transition-all ${
-              isLoadingGeoJson ? 'bg-gray-400 text-white cursor-not-allowed' :
-              showGeoJson 
-                ? 'bg-blue-600 text-white hover:bg-blue-700' 
+            className={`px-4 py-2 rounded-md shadow-sm transition-all ${isLoadingGeoJson ? 'bg-gray-400 text-white cursor-not-allowed' :
+              showGeoJson
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'bg-white text-gray-800 border border-gray-300 hover:bg-gray-100'
-            }`}
+              }`}
           >
             {isLoadingGeoJson ? (
               <span className="flex items-center">
