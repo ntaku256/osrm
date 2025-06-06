@@ -62,6 +62,8 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			Type:        createRequest.Type,
 			Description: createRequest.Description,
 			DangerLevel: createRequest.DangerLevel,
+			Nodes:       createRequest.Nodes,
+			NearestDistance: createRequest.NearestDistance,
 		}
 
 		createdObstacle, statusCode, err := usecase.CreateObstacle(ctx, input)
@@ -106,6 +108,8 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			Type:        updateRequest.Type,
 			Description: updateRequest.Description,
 			DangerLevel: updateRequest.DangerLevel,
+			Nodes:       updateRequest.Nodes,
+			NearestDistance: updateRequest.NearestDistance,
 		}
 
 		updatedObstacle, statusCode, err := usecase.UpdateObstacle(ctx, input)

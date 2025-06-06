@@ -13,6 +13,8 @@ func ToDBObstacle(obstacle output.Obstacle) *db.Obstacle {
 		Type:        obstacle.Type,
 		Description: obstacle.Description,
 		DangerLevel: obstacle.DangerLevel,
+		Nodes:       obstacle.Nodes,
+		NearestDistance: obstacle.NearestDistance,
 		ImageS3Key:  obstacle.ImageS3Key,
 		CreatedAt:   obstacle.CreatedAt,
 	}
@@ -26,6 +28,8 @@ func FromDBObstacle(dbObstacle *db.Obstacle) output.Obstacle {
 		Type:        dbObstacle.Type,
 		Description: dbObstacle.Description,
 		DangerLevel: dbObstacle.DangerLevel,
+		Nodes:       dbObstacle.Nodes,
+		NearestDistance: dbObstacle.NearestDistance,
 		ImageS3Key:  dbObstacle.ImageS3Key,
 		CreatedAt:   dbObstacle.CreatedAt,
 	}

@@ -40,6 +40,8 @@ func UpdateObstacle(ctx context.Context, input input.ObstacleUpdate) (*output.Ob
 		Type:        input.Type,
 		Description: input.Description,
 		DangerLevel: input.DangerLevel,
+		Nodes:       input.Nodes,
+		NearestDistance: input.NearestDistance,
 		CreatedAt:   time.Now().Format(time.RFC3339), // Update the timestamp
 	}
 

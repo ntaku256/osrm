@@ -14,6 +14,8 @@ type ObstacleCreate struct {
 	Type        int        `json:"type" validate:"required"`
 	Description string     `json:"description"`
 	DangerLevel int        `json:"dangerLevel" validate:"required"`
+	Nodes       [2]float64 `json:"nodes" validate:"required"`
+	NearestDistance float64 `json:"nearestDistance" validate:"required"`
 }
 
 // ObstacleUpdate represents input parameters for updating an obstacle
@@ -23,6 +25,8 @@ type ObstacleUpdate struct {
 	Type        int        `json:"type" validate:"required"`
 	Description string     `json:"description"`
 	DangerLevel int        `json:"dangerLevel" validate:"required"`
+	Nodes       [2]float64 `json:"nodes" validate:"required"`
+	NearestDistance float64 `json:"nearestDistance" validate:"required"`
 }
 
 // ObstacleDelete represents input parameters for deleting an obstacle

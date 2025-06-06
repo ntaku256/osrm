@@ -340,6 +340,15 @@ components:
           type: string
         dangerLevel:
           $ref: '#/components/schemas/DangerLevel'
+        nodes:
+          type: array
+          items:
+            type: number
+          description: "[latitude, longitude]"
+          minItems: 2
+          maxItems: 2
+        nearestDistance:
+          type: number
         createdAt:
           type: string
           format: date-time
@@ -365,6 +374,15 @@ components:
           type: string
         dangerLevel:
           $ref: '#/components/schemas/DangerLevel'
+        nodes:
+          type: array
+          items:
+            type: number
+          description: "[latitude, longitude]"
+          minItems: 2
+          maxItems: 2
+        nearestDistance:
+          type: number
       required:
         - position
         - type
@@ -385,6 +403,15 @@ components:
           type: string
         dangerLevel:
           $ref: '#/components/schemas/DangerLevel'
+        nodes:
+          type: array
+          items:
+            type: number
+          description: "[latitude, longitude]"
+          minItems: 2
+          maxItems: 2
+        nearestDistance:
+          type: number
       required:
         - position
         - type

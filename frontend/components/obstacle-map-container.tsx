@@ -251,8 +251,8 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
               </div>
               <div className="mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">危険度:</span> 
-                  <div className={`w-4 h-4 rounded-full ${getDangerLevelBg(selectedObstacle.dangerLevel)}`}></div> 
+                  <span className="font-medium">危険度:</span>
+                  <div className={`w-4 h-4 rounded-full ${getDangerLevelBg(selectedObstacle.dangerLevel)}`}></div>
                   {DangerLevel[selectedObstacle.dangerLevel]}
                 </div>
               </div>
