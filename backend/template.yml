@@ -3,7 +3,6 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   obstacle-api
 
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
     Timeout: 300
@@ -17,8 +16,6 @@ Globals:
         OBSTACLE_TABLE_NAME: !Ref ObstacleTable
         OBSTACLE_IMAGE_BUCKET_NAME: !Ref ObstacleImageBucket
   Api:
-    # api gatewayにStageが作られるバグを回避
-    # https://medium.com/veltra-engineering/avoid-aws-sam-stage-stage-45f7331b7b5d
     OpenApiVersion: 3.0.2
 
 Parameters:
@@ -31,11 +28,6 @@ Parameters:
   Architectures:
     Type: String
     Default: arm64
-
-Conditions:
-  isPrd: !Equals
-    - !Ref ENV
-    - prd
 
 Resources:
   # Role
@@ -171,9 +163,6 @@ Resources:
             Resource: !Sub "arn:aws:s3:::${ENV}-obstacle-image-bucket/*"
 
 Outputs:
-  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
-  # Find out more about other implicit resources you can reference within SAM
-  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
   ObstacleAPI:
     Description: "API Gateway endpoint URL for Obstacle API"
     Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/obstacles"
