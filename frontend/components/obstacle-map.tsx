@@ -26,6 +26,7 @@ interface ObstacleMapProps {
   onObstacleSelect: (obstacle: Obstacle | null) => void
   highlightedPolyline?: [number, number][] | null
   highlightedNode?: [number, number] | null
+  nearestRoadLocation?: [number, number] | null
 }
 
 export default function ObstacleMap({
@@ -37,6 +38,7 @@ export default function ObstacleMap({
   onObstacleSelect,
   highlightedPolyline,
   highlightedNode,
+  nearestRoadLocation,
 }: ObstacleMapProps) {
   const mapRef = useRef(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -348,10 +350,33 @@ export default function ObstacleMap({
           fillOpacity: 0.8,
         }).addTo(highlightLayerRef.current)
       }
+
+      // 最寄り道路の位置にマーカーを表示
+      if (nearestRoadLocation) {
+        const roadIcon = L.divIcon({
+          className: "nearest-road-marker",
+          html: `<div class="w-4 h-4 rounded-full flex items-center justify-center text-white bg-green-500 border-2 border-white shadow-md">🛣️</div>`,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+        })
+
+        const roadMarker = L.marker(nearestRoadLocation, {
+          icon: roadIcon,
+          zIndexOffset: 500,
+        })
+
+        roadMarker.bindTooltip("最寄り道路", {
+          direction: "top",
+          offset: [0, -8],
+          className: "road-tooltip"
+        })
+
+        roadMarker.addTo(highlightLayerRef.current)
+      }
     } catch (error) {
       console.error("Failed to update selection:", error)
     }
-  }, [selectedPosition, mapReady, highlightedPolyline, highlightedNode])
+  }, [selectedPosition, mapReady, highlightedPolyline, highlightedNode, nearestRoadLocation])
 
   // 選択された障害物が変更されたときにマップを更新
   useEffect(() => {

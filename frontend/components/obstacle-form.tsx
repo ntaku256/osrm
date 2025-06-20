@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -14,21 +14,54 @@ import { Loader2, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
 import { obstacleApi } from "@/utils/api"
+import { getNearestRoad } from "@/utils/osrm"
 
 interface ObstacleFormProps {
   position: [number, number]
   nearestRoad: any | null
   onSubmit: (obstacle: Obstacle) => void
   onCancel: () => void
+  onNearestRoadUpdate?: (nearestRoad: any | null) => void
 }
 
-export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel }: ObstacleFormProps) {
+export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel, onNearestRoadUpdate }: ObstacleFormProps) {
   const [type, setType] = useState<ObstacleType>(ObstacleType.OTHER)
   const [description, setDescription] = useState("")
   const [dangerLevel, setDangerLevel] = useState<DangerLevel>(DangerLevel.MEDIUM)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [currentNearestRoad, setCurrentNearestRoad] = useState(nearestRoad)
+  const [isUpdatingRoad, setIsUpdatingRoad] = useState(false)
   const { toast } = useToast()
+
+  // 初期化時にnearestRoadを設定
+  useEffect(() => {
+    setCurrentNearestRoad(nearestRoad)
+    onNearestRoadUpdate?.(nearestRoad)
+  }, [nearestRoad, onNearestRoadUpdate])
+
+  const handleUpdateNearestRoad = async () => {
+    setIsUpdatingRoad(true)
+    try {
+      const updatedRoad = await getNearestRoad(position)
+      setCurrentNearestRoad(updatedRoad)
+      onNearestRoadUpdate?.(updatedRoad)
+      toast({
+        title: "更新完了",
+        description: "最寄り道路情報を更新しました",
+        variant: "default"
+      })
+    } catch (error) {
+      console.error("Failed to update nearest road:", error)
+      toast({
+        title: "エラー",
+        description: "最寄り道路情報の更新に失敗しました",
+        variant: "destructive"
+      })
+    } finally {
+      setIsUpdatingRoad(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,8 +70,8 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
 
     try {
       let nodes: [number, number] | undefined = undefined
-      if (nearestRoad?.nodes && nearestRoad.nodes.length >= 2) {
-        const sorted = [...nearestRoad.nodes].sort((a, b) => a - b)
+      if (currentNearestRoad?.nodes && currentNearestRoad.nodes.length >= 2) {
+        const sorted = [...currentNearestRoad.nodes].sort((a, b) => a - b)
         nodes = [sorted[0], sorted[1]]
       }
       const obstacleData = {
@@ -47,7 +80,7 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
         description,
         dangerLevel,
         nodes,
-        nearestDistance: nearestRoad?.distance !== undefined ? nearestRoad.distance : undefined,
+        nearestDistance: currentNearestRoad?.distance !== undefined ? currentNearestRoad.distance : undefined,
       }
 
       // Send the data to the API
@@ -92,15 +125,54 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
-          {nearestRoad && (
+          {currentNearestRoad && (
             <div className="p-2 bg-blue-50 rounded text-sm text-blue-900 border border-blue-200 mb-2">
-              <div>最寄り道路: <span className="font-semibold">{nearestRoad.name}</span></div>
-              <div>距離: {nearestRoad.distance ? nearestRoad.distance.toFixed(1) : "-"} m</div>
+              <div className="flex justify-between items-center mb-1">
+                <span>最寄り道路情報</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUpdateNearestRoad}
+                  disabled={isUpdatingRoad}
+                  className="text-xs h-6 px-2"
+                >
+                  {isUpdatingRoad ? (
+                    <>
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      更新中
+                    </>
+                  ) : (
+                    "更新"
+                  )}
+                </Button>
+              </div>
+              <div>最寄り道路: <span className="font-semibold">{currentNearestRoad.name}</span></div>
+              <div>距離: {currentNearestRoad.distance ? currentNearestRoad.distance.toFixed(1) : "-"} m</div>
             </div>
           )}
-          {!nearestRoad && (
+          {!currentNearestRoad && (
             <div className="p-2 bg-gray-50 rounded text-sm text-gray-600 border border-gray-200 mb-2">
-              最寄り道路が見つかりませんでした
+              <div className="flex justify-between items-center mb-1">
+                <span>最寄り道路が見つかりませんでした</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUpdateNearestRoad}
+                  disabled={isUpdatingRoad}
+                  className="text-xs h-6 px-2"
+                >
+                  {isUpdatingRoad ? (
+                    <>
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      更新中
+                    </>
+                  ) : (
+                    "再検索"
+                  )}
+                </Button>
+              </div>
             </div>
           )}
           {error && (
@@ -119,13 +191,21 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
             </div>
           </div>
 
-          {nearestRoad && nearestRoad.nodes && (
+          {currentNearestRoad && currentNearestRoad.nodes && (
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
-                <span className="font-medium">最寄りノード:</span> [{nearestRoad.nodes[0]}, {nearestRoad.nodes[1]}]
+                <span className="font-medium">最寄りノード:</span>
+                {currentNearestRoad.nodes[0] === 0 && currentNearestRoad.nodes[1] === 0 ?
+                  " 道路がない" :
+                  ` [${currentNearestRoad.nodes[0]}, ${currentNearestRoad.nodes[1]}]`
+                }
               </div>
               <div>
-                <span className="font-medium">最寄り距離:</span> {nearestRoad.distance ? nearestRoad.distance.toFixed(1) : "-"} m
+                <span className="font-medium">最寄り距離:</span>
+                {currentNearestRoad.distance === 0 ?
+                  " 道路がない" :
+                  ` ${currentNearestRoad.distance ? currentNearestRoad.distance.toFixed(1) : "-"} m`
+                }
               </div>
             </div>
           )}

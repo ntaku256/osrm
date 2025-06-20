@@ -14,19 +14,24 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
 import { obstacleApi } from "@/utils/api"
 import ObstacleImageUploader from "@/components/ObstacleImageUploader"
+import { getNearestRoad } from "@/utils/osrm"
 
 interface ObstacleEditFormProps {
   obstacle: Obstacle & { id?: number }
   onSubmit: (updatedObstacle: Obstacle & { id?: number }) => void
   onCancel: () => void
+  onNearestRoadUpdate?: (nearestRoad: any | null) => void
 }
 
-export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: ObstacleEditFormProps) {
+export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNearestRoadUpdate }: ObstacleEditFormProps) {
   const [type, setType] = useState<ObstacleType>(obstacle.type)
   const [description, setDescription] = useState(obstacle.description)
   const [dangerLevel, setDangerLevel] = useState<DangerLevel>(obstacle.dangerLevel)
+  const [nodes, setNodes] = useState<[number, number]>(obstacle.nodes)
+  const [nearestDistance, setNearestDistance] = useState<number>(obstacle.nearestDistance)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isUpdatingRoad, setIsUpdatingRoad] = useState(false)
   const { toast } = useToast()
 
   // フォームの初期値を設定
@@ -34,7 +39,42 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: Obsta
     setType(obstacle.type)
     setDescription(obstacle.description)
     setDangerLevel(obstacle.dangerLevel)
+    setNodes(obstacle.nodes)
+    setNearestDistance(obstacle.nearestDistance)
   }, [obstacle])
+
+  const handleUpdateNearestRoad = async () => {
+    setIsUpdatingRoad(true)
+    try {
+      const updatedRoad = await getNearestRoad(obstacle.position)
+      if (updatedRoad && updatedRoad.nodes && updatedRoad.nodes.length >= 2) {
+        const sorted = [...updatedRoad.nodes].sort((a, b) => a - b)
+        setNodes([sorted[0], sorted[1]])
+        setNearestDistance(updatedRoad.distance || 0)
+        onNearestRoadUpdate?.(updatedRoad)
+        toast({
+          title: "更新完了",
+          description: "最寄り道路情報を更新しました",
+          variant: "default"
+        })
+      } else {
+        toast({
+          title: "エラー",
+          description: "最寄り道路が見つかりませんでした",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error("Failed to update nearest road:", error)
+      toast({
+        title: "エラー",
+        description: "最寄り道路情報の更新に失敗しました",
+        variant: "destructive"
+      })
+    } finally {
+      setIsUpdatingRoad(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -54,6 +94,8 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: Obsta
         type,
         description,
         dangerLevel,
+        nodes,
+        nearestDistance,
       }
 
       // APIで障害物を更新
@@ -80,6 +122,8 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: Obsta
           type,
           description,
           dangerLevel,
+          nodes,
+          nearestDistance,
         }
         onSubmit(updatedObstacle)
       }
@@ -120,12 +164,42 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: Obsta
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <span className="font-medium">最寄りノード:</span> [{obstacle.nodes[0]}, {obstacle.nodes[1]}]
+          <div className="grid grid-cols-1 gap-2 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="font-medium">最寄り道路情報</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleUpdateNearestRoad}
+                disabled={isUpdatingRoad}
+                className="text-xs h-6 px-2"
+              >
+                {isUpdatingRoad ? (
+                  <>
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    更新中
+                  </>
+                ) : (
+                  "更新"
+                )}
+              </Button>
             </div>
-            <div>
-              <span className="font-medium">最寄り距離:</span> {obstacle.nearestDistance.toFixed(1)} m
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="font-medium">最寄りノード:</span>
+                {nodes[0] === 0 && nodes[1] === 0 ?
+                  " 道路がない" :
+                  ` [${nodes[0]}, ${nodes[1]}]`
+                }
+              </div>
+              <div>
+                <span className="font-medium">最寄り距離:</span>
+                {nearestDistance === 0 ?
+                  " 道路がない" :
+                  ` ${nearestDistance.toFixed(1)} m`
+                }
+              </div>
             </div>
           </div>
 

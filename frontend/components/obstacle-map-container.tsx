@@ -42,7 +42,9 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
   const [highlightedPolyline, setHighlightedPolyline] = useState<[number, number][] | null>(null)
   const [highlightedNode, setHighlightedNode] = useState<[number, number] | null>(null)
   const [highlightedSegmentDistance, setHighlightedSegmentDistance] = useState<number | null>(null)
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [editingNearestRoad, setEditingNearestRoad] = useState<any | null>(null)
+  const [obstacleFilter, setObstacleFilter] = useState<'all' | 'hideRoadless' | 'roadlessOnly'>('all')
 
   // modeがcreate以外になったら選択位置をリセット
   useEffect(() => {
@@ -132,10 +134,15 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
 
   const handleEditCancel = () => {
     setIsEditFormOpen(false)
+    setEditingNearestRoad(null)
   }
 
-  const handleEditClick = () => {
+  const handleEditClick = async () => {
     setIsEditFormOpen(true)
+    if (selectedObstacle) {
+      const nearest = await getNearestRoad(selectedObstacle.position)
+      setEditingNearestRoad(nearest)
+    }
   }
 
   const handleObstacleSelect = async (obstacle: ExtendedObstacle | null) => {
@@ -220,6 +227,11 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
             onObstacleSelect={handleObstacleSelect}
             highlightedPolyline={highlightedPolyline}
             highlightedNode={highlightedNode}
+            nearestRoadLocation={
+              mode === "edit" && isEditFormOpen
+                ? editingNearestRoad?.location
+                : nearestRoad?.location
+            }
           />
         )}
         {highlightedSegmentDistance && (
@@ -308,38 +320,106 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
             nearestRoad={nearestRoad}
             onSubmit={handleObstacleSubmit}
             onCancel={handleFormCancel}
+            onNearestRoadUpdate={setNearestRoad}
           />
         ) : mode === "edit" && isEditFormOpen && selectedObstacle ? (
           <ObstacleEditForm
             obstacle={selectedObstacle}
             onSubmit={handleObstacleUpdate}
             onCancel={handleEditCancel}
+            onNearestRoadUpdate={setEditingNearestRoad}
           />
         ) : (
           <div className="border rounded-lg p-4">
-            <h2 className="text-xl font-semibold mb-4">登録済み障害物</h2>
-            {obstacles.length > 0 ? (
-              <ul className="space-y-2">
-                {obstacles.map((obstacle, index) => (
-                  <li
-                    key={obstacle.id || index}
-                    className="border rounded p-2 cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={() => setSelectedObstacle(obstacle)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium">{getObstacleTypeIcon(obstacle.type)}</div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">登録済み障害物</h2>
+              {mode === "edit" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const nextFilter = obstacleFilter === 'all'
+                      ? 'hideRoadless'
+                      : obstacleFilter === 'hideRoadless'
+                        ? 'roadlessOnly'
+                        : 'all'
+                    setObstacleFilter(nextFilter)
+                  }}
+                  className="text-xs"
+                >
+                  {obstacleFilter === 'all'
+                    ? "全て表示"
+                    : obstacleFilter === 'hideRoadless'
+                      ? "道路登録済みの障害物のみ表示"
+                      : "道路なしのみ表示"
+                  }
+                </Button>
+              )}
+            </div>
+            {(() => {
+              // フィルタ適用
+              const filteredObstacles = mode === "edit" ? (() => {
+                const isRoadless = (obstacle: ExtendedObstacle) =>
+                  obstacle.nodes[0] === 0 && obstacle.nodes[1] === 0 && obstacle.nearestDistance === 0
+
+                switch (obstacleFilter) {
+                  case 'hideRoadless':
+                    return obstacles.filter(obstacle => !isRoadless(obstacle))
+                  case 'roadlessOnly':
+                    return obstacles.filter(obstacle => isRoadless(obstacle))
+                  default:
+                    return obstacles
+                }
+              })() : obstacles
+
+              return filteredObstacles.length > 0 ? (
+                <div>
+                  {mode === "edit" && obstacleFilter !== 'all' && filteredObstacles.length !== obstacles.length && (
+                    <div className="mb-2 text-xs text-gray-500">
+                      {obstacleFilter === 'hideRoadless'
+                        ? `${obstacles.length - filteredObstacles.length}件の道路情報なし障害物を非表示中`
+                        : `道路情報なし障害物のみ${filteredObstacles.length}件を表示中`
+                      }
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-4 h-4 rounded-full ${getDangerLevelBg(obstacle.dangerLevel)}`}></div>
-                      <div className="text-sm text-gray-500">危険度: {DangerLevel[obstacle.dangerLevel]}</div>
-                    </div>
-                    <div className="text-sm truncate">{obstacle.description}</div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-gray-500">地図上をクリックして障害物を登録してください</p>
-            )}
+                  )}
+                  <ul className="space-y-2">
+                    {filteredObstacles.map((obstacle, index) => (
+                      <li
+                        key={obstacle.id || index}
+                        className="border rounded p-2 cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => setSelectedObstacle(obstacle)}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium">{getObstacleTypeIcon(obstacle.type)}</div>
+                            {mode === "edit" && obstacle.nodes[0] === 0 && obstacle.nodes[1] === 0 && obstacle.nearestDistance === 0 && (
+                              <div className="text-xs bg-gray-100 text-gray-600 px-1 rounded">道路なし</div>
+                            )}
+                          </div>
+                          {obstacle.id && (
+                            <div className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-mono">
+                              ID: {obstacle.id}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded-full ${getDangerLevelBg(obstacle.dangerLevel)}`}></div>
+                          <div className="text-sm text-gray-500">危険度: {DangerLevel[obstacle.dangerLevel]}</div>
+                        </div>
+                        <div className="text-sm truncate">{obstacle.description}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-gray-500">
+                  {obstacleFilter !== 'all' && mode === "edit" && obstacles.length > 0
+                    ? "フィルタ条件に一致する障害物がありません"
+                    : "地図上をクリックして障害物を登録してください"
+                  }
+                </p>
+              )
+            })()}
           </div>
         )}
       </div>
