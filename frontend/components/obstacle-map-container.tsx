@@ -263,6 +263,12 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                 <span className="font-medium">経度:</span> {selectedObstacle.position[1].toFixed(6)}
               </div>
               <div className="mb-2">
+                <span className="font-medium">最寄りノード:</span> [{selectedObstacle.nodes[0]}, {selectedObstacle.nodes[1]}]
+              </div>
+              <div className="mb-2">
+                <span className="font-medium">最寄り距離:</span> {selectedObstacle.nearestDistance.toFixed(1)} m
+              </div>
+              <div className="mb-2">
                 <span className="font-medium">更新日時:</span> {new Date(selectedObstacle.createdAt).toLocaleString("ja-JP")}
               </div>
               <div className="flex flex-col gap-2">

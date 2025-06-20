@@ -67,7 +67,7 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
           description: "Obstacle registered successfully!",
           variant: "default"
         })
-        
+
         // Call the onSubmit handler with the created obstacle
         onSubmit(response.data)
       }
@@ -109,7 +109,7 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          
+
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
               <span className="font-medium">緯度:</span> {position[0].toFixed(6)}
@@ -118,6 +118,17 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
               <span className="font-medium">経度:</span> {position[1].toFixed(6)}
             </div>
           </div>
+
+          {nearestRoad && nearestRoad.nodes && (
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="font-medium">最寄りノード:</span> [{nearestRoad.nodes[0]}, {nearestRoad.nodes[1]}]
+              </div>
+              <div>
+                <span className="font-medium">最寄り距離:</span> {nearestRoad.distance ? nearestRoad.distance.toFixed(1) : "-"} m
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="type">障害物の種類</Label>

@@ -120,6 +120,15 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel }: Obsta
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <span className="font-medium">最寄りノード:</span> [{obstacle.nodes[0]}, {obstacle.nodes[1]}]
+            </div>
+            <div>
+              <span className="font-medium">最寄り距離:</span> {obstacle.nearestDistance.toFixed(1)} m
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="type">障害物の種類</Label>
             <Select value={type.toString()} onValueChange={(value) => setType(Number.parseInt(value))}>
