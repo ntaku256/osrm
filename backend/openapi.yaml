@@ -9,18 +9,18 @@ paths:
     get:
       summary: Get all obstacles
       responses:
-        '200':
+        "200":
           description: List of obstacles
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ListObstacleResponse'
+                $ref: "#/components/schemas/ListObstacleResponse"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
       x-amazon-apigateway-integration:
         credentials:
           Fn::Sub: ${ApiRole.Arn}
@@ -36,20 +36,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateObstacleRequest'
+              $ref: "#/components/schemas/CreateObstacleRequest"
       responses:
-        '201':
+        "201":
           description: Created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Obstacle'
+                $ref: "#/components/schemas/Obstacle"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
       x-amazon-apigateway-integration:
         credentials:
           Fn::Sub: ${ApiRole.Arn}
@@ -68,18 +68,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Obstacle found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Obstacle'
+                $ref: "#/components/schemas/Obstacle"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
       x-amazon-apigateway-integration:
         credentials:
           Fn::Sub: ${ApiRole.Arn}
@@ -101,20 +101,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateObstacleRequest'
+              $ref: "#/components/schemas/UpdateObstacleRequest"
       responses:
-        '200':
+        "200":
           description: Updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Obstacle'
+                $ref: "#/components/schemas/Obstacle"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
       x-amazon-apigateway-integration:
         credentials:
           Fn::Sub: ${ApiRole.Arn}
@@ -132,18 +132,18 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        "204":
           description: Deleted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Empty'
+                $ref: "#/components/schemas/Empty"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
       x-amazon-apigateway-integration:
         credentials:
           Fn::Sub: ${ApiRole.Arn}
@@ -171,7 +171,7 @@ paths:
                 filename:
                   type: string
       responses:
-        '200':
+        "200":
           description: Presigned URL
           content:
             application/json:
@@ -187,7 +187,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
       x-amazon-apigateway-integration:
         credentials:
           Fn::Sub: ${ApiRole.Arn}
@@ -199,7 +199,7 @@ paths:
     options:
       summary: CORS support
       responses:
-        '200':
+        "200":
           description: CORS support
           headers:
             Access-Control-Allow-Headers:
@@ -213,14 +213,14 @@ paths:
         requestTemplates:
           application/json: '{"statusCode": 200}'
         responses:
-          '200':
+          "200":
             statusCode: 200
             responseParameters:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
               method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PUT'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
             responseTemplates:
-              application/json: '{}'
+              application/json: "{}"
   /obstacles/{id}/image:
     put:
       summary: Save image_s3_key to obstacle
@@ -240,18 +240,18 @@ paths:
                 image_s3_key:
                   type: string
       responses:
-        '200':
+        "200":
           description: Updated obstacle
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Obstacle'
+                $ref: "#/components/schemas/Obstacle"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
       x-amazon-apigateway-integration:
         credentials:
           Fn::Sub: ${ApiRole.Arn}
@@ -263,7 +263,7 @@ paths:
     options:
       summary: CORS support
       responses:
-        '200':
+        "200":
           description: CORS support
           headers:
             Access-Control-Allow-Headers:
@@ -277,14 +277,14 @@ paths:
         requestTemplates:
           application/json: '{"statusCode": 200}'
         responses:
-          '200':
+          "200":
             statusCode: 200
             responseParameters:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
               method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PUT'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
             responseTemplates:
-              application/json: '{}'
+              application/json: "{}"
 components:
   schemas:
     Error:
@@ -335,11 +335,11 @@ components:
           minItems: 2
           maxItems: 2
         type:
-          $ref: '#/components/schemas/ObstacleType'
+          $ref: "#/components/schemas/ObstacleType"
         description:
           type: string
         dangerLevel:
-          $ref: '#/components/schemas/DangerLevel'
+          $ref: "#/components/schemas/DangerLevel"
         nodes:
           type: array
           items:
@@ -349,6 +349,8 @@ components:
           maxItems: 2
         nearestDistance:
           type: number
+        noNearbyRoad:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -369,11 +371,11 @@ components:
           minItems: 2
           maxItems: 2
         type:
-          $ref: '#/components/schemas/ObstacleType'
+          $ref: "#/components/schemas/ObstacleType"
         description:
           type: string
         dangerLevel:
-          $ref: '#/components/schemas/DangerLevel'
+          $ref: "#/components/schemas/DangerLevel"
         nodes:
           type: array
           items:
@@ -383,6 +385,8 @@ components:
           maxItems: 2
         nearestDistance:
           type: number
+        noNearbyRoad:
+          type: boolean
       required:
         - position
         - type
@@ -398,11 +402,11 @@ components:
           minItems: 2
           maxItems: 2
         type:
-          $ref: '#/components/schemas/ObstacleType'
+          $ref: "#/components/schemas/ObstacleType"
         description:
           type: string
         dangerLevel:
-          $ref: '#/components/schemas/DangerLevel'
+          $ref: "#/components/schemas/DangerLevel"
         nodes:
           type: array
           items:
@@ -412,6 +416,8 @@ components:
           maxItems: 2
         nearestDistance:
           type: number
+        noNearbyRoad:
+          type: boolean
       required:
         - position
         - type

@@ -32,6 +32,7 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
   const [error, setError] = useState<string | null>(null)
   const [currentNearestRoad, setCurrentNearestRoad] = useState(nearestRoad)
   const [isUpdatingRoad, setIsUpdatingRoad] = useState(false)
+  const [noNearbyRoad, setNoNearbyRoad] = useState(false)
   const { toast } = useToast()
 
   // 初期化時にnearestRoadを設定
@@ -46,6 +47,7 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
       const updatedRoad = await getNearestRoad(position)
       setCurrentNearestRoad(updatedRoad)
       onNearestRoadUpdate?.(updatedRoad)
+      setNoNearbyRoad(false) // 道路情報を更新したらフラグをリセット
       toast({
         title: "更新完了",
         description: "最寄り道路情報を更新しました",
@@ -61,6 +63,17 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
     } finally {
       setIsUpdatingRoad(false)
     }
+  }
+
+  const handleMarkNoRoad = () => {
+    setCurrentNearestRoad(null)
+    setNoNearbyRoad(true)
+    onNearestRoadUpdate?.(null)
+    toast({
+      title: "設定完了",
+      description: "この場所には道路がないとマークしました",
+      variant: "default"
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -80,7 +93,8 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
         description,
         dangerLevel,
         nodes,
-        nearestDistance: currentNearestRoad?.distance !== undefined ? currentNearestRoad.distance : undefined,
+        nearestDistance: currentNearestRoad?.distance !== undefined ? currentNearestRoad.distance : 0,
+        noNearbyRoad,
       }
 
       // Send the data to the API
@@ -129,32 +143,78 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
             <div className="p-2 bg-blue-50 rounded text-sm text-blue-900 border border-blue-200 mb-2">
               <div className="flex justify-between items-center mb-1">
                 <span>最寄り道路情報</span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleUpdateNearestRoad}
-                  disabled={isUpdatingRoad}
-                  className="text-xs h-6 px-2"
-                >
-                  {isUpdatingRoad ? (
-                    <>
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                      更新中
-                    </>
-                  ) : (
-                    "更新"
-                  )}
-                </Button>
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleUpdateNearestRoad}
+                    disabled={isUpdatingRoad}
+                    className="text-xs h-6 px-2"
+                  >
+                    {isUpdatingRoad ? (
+                      <>
+                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        更新中
+                      </>
+                    ) : (
+                      "更新"
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleMarkNoRoad}
+                    className="text-xs h-6 px-2"
+                  >
+                    道路なし
+                  </Button>
+                </div>
               </div>
               <div>最寄り道路: <span className="font-semibold">{currentNearestRoad.name}</span></div>
               <div>距離: {currentNearestRoad.distance ? currentNearestRoad.distance.toFixed(1) : "-"} m</div>
             </div>
           )}
-          {!currentNearestRoad && (
+          {!currentNearestRoad && !noNearbyRoad && (
             <div className="p-2 bg-gray-50 rounded text-sm text-gray-600 border border-gray-200 mb-2">
               <div className="flex justify-between items-center mb-1">
                 <span>最寄り道路が見つかりませんでした</span>
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleUpdateNearestRoad}
+                    disabled={isUpdatingRoad}
+                    className="text-xs h-6 px-2"
+                  >
+                    {isUpdatingRoad ? (
+                      <>
+                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        更新中
+                      </>
+                    ) : (
+                      "再検索"
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleMarkNoRoad}
+                    className="text-xs h-6 px-2"
+                  >
+                    道路なし
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+          {noNearbyRoad && (
+            <div className="p-2 bg-red-50 rounded text-sm text-red-900 border border-red-200 mb-2">
+              <div className="flex justify-between items-center mb-1">
+                <span>この場所には道路がないとマークされています</span>
                 <Button
                   type="button"
                   variant="outline"
@@ -209,6 +269,27 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
               </div>
             </div>
           )}
+
+          <div className="border-t pt-2 mt-2">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium">道路なしフラグ</span>
+              <Button
+                type="button"
+                variant={noNearbyRoad ? "destructive" : "outline"}
+                size="sm"
+                onClick={() => setNoNearbyRoad(!noNearbyRoad)}
+                className="text-xs h-6 px-2"
+              >
+                {noNearbyRoad ? "フラグON" : "フラグOFF"}
+              </Button>
+            </div>
+            <div className={`text-xs p-2 rounded ${noNearbyRoad
+              ? 'bg-red-100 text-red-700'
+              : 'bg-gray-100 text-gray-600'
+              }`}>
+              {noNearbyRoad ? '✓ この場所には道路がないとマークされています' : '✗ 道路なしフラグが設定されていません'}
+            </div>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="type">障害物の種類</Label>

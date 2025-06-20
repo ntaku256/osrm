@@ -7,18 +7,18 @@ paths:
     get:
       summary: Get all obstacles
       responses:
-        '200':
+        "200":
           description: List of obstacles
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ListObstacleResponse'
+                $ref: "#/components/schemas/ListObstacleResponse"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     post:
       summary: Create an obstacle
       requestBody:
@@ -26,20 +26,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateObstacleRequest'
+              $ref: "#/components/schemas/CreateObstacleRequest"
       responses:
-        '201':
+        "201":
           description: Created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Obstacle'
+                $ref: "#/components/schemas/Obstacle"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
   /obstacles/{id}:
     get:
       summary: Get an obstacle by ID
@@ -50,18 +50,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Obstacle found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Obstacle'
+                $ref: "#/components/schemas/Obstacle"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     put:
       summary: Update an obstacle
       parameters:
@@ -75,20 +75,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateObstacleRequest'
+              $ref: "#/components/schemas/UpdateObstacleRequest"
       responses:
-        '200':
+        "200":
           description: Updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Obstacle'
+                $ref: "#/components/schemas/Obstacle"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
     delete:
       summary: Delete an obstacle
       parameters:
@@ -98,18 +98,18 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        "204":
           description: Deleted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Empty'
+                $ref: "#/components/schemas/Empty"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
     Error:
@@ -160,11 +160,11 @@ components:
           minItems: 2
           maxItems: 2
         type:
-          $ref: '#/components/schemas/ObstacleType'
+          $ref: "#/components/schemas/ObstacleType"
         description:
           type: string
         dangerLevel:
-          $ref: '#/components/schemas/DangerLevel'
+          $ref: "#/components/schemas/DangerLevel"
         nodes:
           type: array
           items:
@@ -174,6 +174,8 @@ components:
           maxItems: 2
         nearestDistance:
           type: number
+        noNearbyRoad:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -194,11 +196,11 @@ components:
           minItems: 2
           maxItems: 2
         type:
-          $ref: '#/components/schemas/ObstacleType'
+          $ref: "#/components/schemas/ObstacleType"
         description:
           type: string
         dangerLevel:
-          $ref: '#/components/schemas/DangerLevel'
+          $ref: "#/components/schemas/DangerLevel"
         nodes:
           type: array
           items:
@@ -208,6 +210,8 @@ components:
           maxItems: 2
         nearestDistance:
           type: number
+        noNearbyRoad:
+          type: boolean
       required:
         - position
         - type
@@ -223,11 +227,11 @@ components:
           minItems: 2
           maxItems: 2
         type:
-          $ref: '#/components/schemas/ObstacleType'
+          $ref: "#/components/schemas/ObstacleType"
         description:
           type: string
         dangerLevel:
-          $ref: '#/components/schemas/DangerLevel'
+          $ref: "#/components/schemas/DangerLevel"
         nodes:
           type: array
           items:
@@ -237,6 +241,8 @@ components:
           maxItems: 2
         nearestDistance:
           type: number
+        noNearbyRoad:
+          type: boolean
       required:
         - position
         - type

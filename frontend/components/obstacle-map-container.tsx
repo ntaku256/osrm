@@ -281,6 +281,15 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                 <span className="font-medium">最寄り距離:</span> {selectedObstacle.nearestDistance.toFixed(1)} m
               </div>
               <div className="mb-2">
+                <span className="font-medium">道路なしフラグ:</span>
+                <span className={`ml-2 px-2 py-1 rounded text-sm ${selectedObstacle.noNearbyRoad
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-green-100 text-green-700'
+                  }`}>
+                  {selectedObstacle.noNearbyRoad ? '✓ 道路なし確認済み' : '✗ 未確認'}
+                </span>
+              </div>
+              <div className="mb-2">
                 <span className="font-medium">更新日時:</span> {new Date(selectedObstacle.createdAt).toLocaleString("ja-JP")}
               </div>
               <div className="flex flex-col gap-2">
@@ -366,7 +375,8 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                   case 'hideRoadless':
                     return obstacles.filter(obstacle => !isRoadless(obstacle))
                   case 'roadlessOnly':
-                    return obstacles.filter(obstacle => isRoadless(obstacle))
+                    // noNearbyRoadフラグが立っていない（未処理の）道路なし障害物のみを表示
+                    return obstacles.filter(obstacle => isRoadless(obstacle) && !obstacle.noNearbyRoad)
                   default:
                     return obstacles
                 }
@@ -392,8 +402,23 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <div className="flex items-center gap-2">
                             <div className="font-medium">{getObstacleTypeIcon(obstacle.type)}</div>
-                            {mode === "edit" && obstacle.nodes[0] === 0 && obstacle.nodes[1] === 0 && obstacle.nearestDistance === 0 && (
-                              <div className="text-xs bg-gray-100 text-gray-600 px-1 rounded">道路なし</div>
+                            {mode === "edit" && (
+                              <div className="flex items-center gap-1">
+                                {obstacle.nodes[0] === 0 && obstacle.nodes[1] === 0 && obstacle.nearestDistance === 0 && (
+                                  <div className={`text-xs px-1 rounded ${obstacle.noNearbyRoad
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                    {obstacle.noNearbyRoad ? '道路なし確認済み' : '道路なし'}
+                                  </div>
+                                )}
+                                <div className={`text-xs px-1 rounded border ${obstacle.noNearbyRoad
+                                  ? 'bg-red-50 text-red-600 border-red-200'
+                                  : 'bg-gray-50 text-gray-600 border-gray-200'
+                                  }`} title={obstacle.noNearbyRoad ? '道路なしフラグ: ON' : '道路なしフラグ: OFF'}>
+                                  {obstacle.noNearbyRoad ? '✓' : '✗'}
+                                </div>
+                              </div>
                             )}
                           </div>
                           {obstacle.id && (

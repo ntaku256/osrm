@@ -22,4 +22,5 @@ export interface Obstacle {
   nearestDistance: number
   createdAt: string // ISO date string
   image_s3_key?: string
+  noNearbyRoad?: boolean // 近くに道路がないことを示すフラグ
 }

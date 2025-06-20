@@ -7,6 +7,7 @@ type CreateObstacleRequest struct {
 	DangerLevel int        `json:"dangerLevel" validate:"required"`
 	Nodes       [2]float64 `json:"nodes" validate:"required"`
 	NearestDistance float64 `json:"nearestDistance" validate:"required"`
+	NoNearbyRoad  bool       `json:"noNearbyRoad"`
 }
 
 type UpdateObstacleRequest struct {
@@ -16,4 +17,5 @@ type UpdateObstacleRequest struct {
 	DangerLevel int        `json:"dangerLevel" validate:"required"`
 	Nodes       [2]float64 `json:"nodes" validate:"required"`
 	NearestDistance float64 `json:"nearestDistance" validate:"required"`
+	NoNearbyRoad  bool       `json:"noNearbyRoad"`
 }

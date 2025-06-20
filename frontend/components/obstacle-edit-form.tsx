@@ -29,6 +29,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
   const [dangerLevel, setDangerLevel] = useState<DangerLevel>(obstacle.dangerLevel)
   const [nodes, setNodes] = useState<[number, number]>(obstacle.nodes)
   const [nearestDistance, setNearestDistance] = useState<number>(obstacle.nearestDistance)
+  const [noNearbyRoad, setNoNearbyRoad] = useState<boolean>(obstacle.noNearbyRoad || false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isUpdatingRoad, setIsUpdatingRoad] = useState(false)
@@ -41,6 +42,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
     setDangerLevel(obstacle.dangerLevel)
     setNodes(obstacle.nodes)
     setNearestDistance(obstacle.nearestDistance)
+    setNoNearbyRoad(obstacle.noNearbyRoad || false)
   }, [obstacle])
 
   const handleUpdateNearestRoad = async () => {
@@ -51,6 +53,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
         const sorted = [...updatedRoad.nodes].sort((a, b) => a - b)
         setNodes([sorted[0], sorted[1]])
         setNearestDistance(updatedRoad.distance || 0)
+        setNoNearbyRoad(false) // 道路情報を更新したらフラグをリセット
         onNearestRoadUpdate?.(updatedRoad)
         toast({
           title: "更新完了",
@@ -76,6 +79,18 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
     }
   }
 
+  const handleMarkNoRoad = () => {
+    setNodes([0, 0])
+    setNearestDistance(0)
+    setNoNearbyRoad(true)
+    onNearestRoadUpdate?.(null)
+    toast({
+      title: "設定完了",
+      description: "この場所には道路がないとマークしました",
+      variant: "default"
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -96,6 +111,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
         dangerLevel,
         nodes,
         nearestDistance,
+        noNearbyRoad,
       }
 
       // APIで障害物を更新
@@ -124,6 +140,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
           dangerLevel,
           nodes,
           nearestDistance,
+          noNearbyRoad,
         }
         onSubmit(updatedObstacle)
       }
@@ -167,23 +184,54 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
           <div className="grid grid-cols-1 gap-2 text-sm">
             <div className="flex justify-between items-center">
               <span className="font-medium">最寄り道路情報</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleUpdateNearestRoad}
-                disabled={isUpdatingRoad}
-                className="text-xs h-6 px-2"
-              >
-                {isUpdatingRoad ? (
-                  <>
-                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                    更新中
-                  </>
-                ) : (
-                  "更新"
-                )}
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUpdateNearestRoad}
+                  disabled={isUpdatingRoad}
+                  className="text-xs h-6 px-2"
+                >
+                  {isUpdatingRoad ? (
+                    <>
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      更新中
+                    </>
+                  ) : (
+                    "更新"
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleMarkNoRoad}
+                  className="text-xs h-6 px-2"
+                >
+                  道路なし
+                </Button>
+              </div>
+            </div>
+            <div className="border-t pt-2 mt-2">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium">道路なしフラグ</span>
+                <Button
+                  type="button"
+                  variant={noNearbyRoad ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={() => setNoNearbyRoad(!noNearbyRoad)}
+                  className="text-xs h-6 px-2"
+                >
+                  {noNearbyRoad ? "フラグON" : "フラグOFF"}
+                </Button>
+              </div>
+              <div className={`text-xs p-2 rounded ${noNearbyRoad
+                ? 'bg-red-100 text-red-700'
+                : 'bg-gray-100 text-gray-600'
+                }`}>
+                {noNearbyRoad ? '✓ この場所には道路がないとマークされています' : '✗ 道路なしフラグが設定されていません'}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
