@@ -230,7 +230,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
                 ? 'bg-red-100 text-red-700'
                 : 'bg-gray-100 text-gray-600'
                 }`}>
-                {noNearbyRoad ? '✓ この場所には道路がないとマークされています' : '✗ 道路なしフラグが設定されていません'}
+                {/* {noNearbyRoad ? '✓ この場所には道路がないとマークされています' : '✗ 道路なしフラグが設定されていません'} */}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">

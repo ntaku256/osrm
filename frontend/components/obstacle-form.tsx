@@ -287,7 +287,7 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
               ? 'bg-red-100 text-red-700'
               : 'bg-gray-100 text-gray-600'
               }`}>
-              {noNearbyRoad ? '✓ この場所には道路がないとマークされています' : '✗ 道路なしフラグが設定されていません'}
+              {/* {noNearbyRoad ? '✓ この場所には道路がないとマークされています' : '✗ 道路なしフラグが設定されていません'} */}
             </div>
           </div>
 

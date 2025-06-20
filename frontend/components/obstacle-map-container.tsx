@@ -286,7 +286,7 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                   ? 'bg-red-100 text-red-700'
                   : 'bg-green-100 text-green-700'
                   }`}>
-                  {selectedObstacle.noNearbyRoad ? '✓ 道路なし確認済み' : '✗ 未確認'}
+                  {(selectedObstacle.noNearbyRoad) ? '✓ 道路なし確認済み' : (selectedObstacle.nodes[0] === 0 && selectedObstacle.nodes[1] === 0 && selectedObstacle.nearestDistance === 0 ? '✗ 未確認' : '•')}
                 </span>
               </div>
               <div className="mb-2">
@@ -416,7 +416,7 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                                   ? 'bg-red-50 text-red-600 border-red-200'
                                   : 'bg-gray-50 text-gray-600 border-gray-200'
                                   }`} title={obstacle.noNearbyRoad ? '道路なしフラグ: ON' : '道路なしフラグ: OFF'}>
-                                  {obstacle.noNearbyRoad ? '✓' : '✗'}
+                                  {obstacle.noNearbyRoad ? '✓' : (obstacle.nodes[0] === 0 && obstacle.nodes[1] === 0 && obstacle.nearestDistance === 0 ? '✗' : '•')}
                                 </div>
                               </div>
                             )}
