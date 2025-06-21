@@ -185,6 +185,48 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		}
 		return jsonResponse(statusCode, updatedObstacle)
 
+	// POST /route-with-obstacles - Get route with obstacles
+	case request.HTTPMethod == "POST" && request.Resource == "/route-with-obstacles":
+		var routeRequest apiinput.RouteWithObstaclesRequest
+		if err := json.Unmarshal([]byte(request.Body), &routeRequest); err != nil {
+			return errorResponse(logger, request, http.StatusBadRequest, "Invalid request body", nil, err)
+		}
+
+		// API入力をUsecase入力に変換
+		var locations []input.Location
+		for _, loc := range routeRequest.Locations {
+			locations = append(locations, input.Location{
+				Lat: loc.Lat,
+				Lon: loc.Lon,
+			})
+		}
+
+		// デフォルト値を設定
+		detectionMethod := input.DetectionMethodDistance
+		if routeRequest.DetectionMethod != "" {
+			detectionMethod = input.ObstacleDetectionMethod(routeRequest.DetectionMethod)
+		}
+		
+		distanceThreshold := 0.02 // デフォルト20m
+		if routeRequest.DistanceThreshold > 0 {
+			distanceThreshold = routeRequest.DistanceThreshold
+		}
+
+		usecaseInput := input.RouteWithObstacles{
+			Locations:         locations,
+			Language:          routeRequest.Language,
+			Costing:           routeRequest.Costing,
+			DetectionMethod:   detectionMethod,
+			DistanceThreshold: distanceThreshold,
+		}
+
+		routeResponse, statusCode, err := usecase.GetRouteWithObstacles(ctx, usecaseInput)
+		if err != nil {
+			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
+		}
+
+		return jsonResponse(statusCode, routeResponse)
+
 	default:
 		return errorResponse(logger, request, http.StatusNotFound, "Not Found", nil, nil)
 	}

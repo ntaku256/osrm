@@ -1,7 +1,8 @@
 "use client"
 import React from "react";
+import Link from "next/link";
 import type { MapMode } from "@/app/content";
-import { Eye, PlusCircle, Edit3 } from "lucide-react";
+import { Eye, PlusCircle, Edit3, Navigation } from "lucide-react";
 
 interface HeaderProps {
     mode: MapMode;
@@ -42,7 +43,13 @@ const Header: React.FC<HeaderProps> = ({ mode, onModeChange }) => {
             {/* スマホ用: タイトルの下・右端にボタン */}
             <div className="flex flex-col gap-2 sm:hidden">
                 <h1 className="text-2xl font-bold">OSM 障害物登録マップ</h1>
-                <div className="flex w-full justify-end">
+                <div className="flex w-full justify-end gap-2">
+                    <Link href="/route">
+                        <button className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-semibold shadow transition flex items-center gap-2">
+                            <Navigation className="inline w-4 h-4" />
+                            ルート検索
+                        </button>
+                    </Link>
                     <button
                         className={`max-w-xs px-4 py-2 rounded-md font-semibold shadow transition flex items-center gap-2 ${color}`}
                         onClick={() => onModeChange(getNextMode(mode))}
@@ -55,13 +62,21 @@ const Header: React.FC<HeaderProps> = ({ mode, onModeChange }) => {
             {/* PC用: 横並び */}
             <div className="hidden sm:flex sm:flex-row sm:items-center sm:justify-between">
                 <h1 className="text-2xl font-bold">OSM 障害物登録マップ</h1>
-                <button
-                    className={`px-4 py-2 rounded-md font-semibold shadow transition flex items-center gap-2 ${color}`}
-                    onClick={() => onModeChange(getNextMode(mode))}
-                >
-                    {icon}
-                    {label}
-                </button>
+                <div className="flex gap-2">
+                    <Link href="/route">
+                        <button className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-semibold shadow transition flex items-center gap-2">
+                            <Navigation className="inline w-4 h-4 mr-2" />
+                            ルート検索
+                        </button>
+                    </Link>
+                    <button
+                        className={`px-4 py-2 rounded-md font-semibold shadow transition flex items-center gap-2 ${color}`}
+                        onClick={() => onModeChange(getNextMode(mode))}
+                    >
+                        {icon}
+                        {label}
+                    </button>
+                </div>
             </div>
         </header>
     );

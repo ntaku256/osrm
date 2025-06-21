@@ -11,4 +11,5 @@ type Obstacle struct {
 	NoNearbyRoad  bool       `json:"no_nearby_road" dynamodbav:"no_nearby_road"`
 	ImageS3Key  string     `json:"image_s3_key" dynamodbav:"image_s3_key"`
 	CreatedAt   string     `json:"created_at" dynamodbav:"created_at"`
+	Nodes       []int64    `json:"nodes,omitempty" dynamodbav:"nodes,omitempty"`
 }

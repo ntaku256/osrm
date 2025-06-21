@@ -284,7 +284,62 @@ paths:
               method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PUT'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
             responseTemplates:
-              application/json: "{}"
+              application/json: '{}'
+  /route-with-obstacles:
+    post:
+      summary: Get route from Valhalla with obstacles information
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteWithObstaclesRequest'
+      responses:
+        '200':
+          description: Route with obstacles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValhallaRouteResponse'
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ObstacleFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    options:
+      summary: CORS support
+      responses:
+        '200':
+          description: CORS support
+          headers:
+            Access-Control-Allow-Headers:
+              type: string
+            Access-Control-Allow-Methods:
+              type: string
+            Access-Control-Allow-Origin:
+              type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          '200':
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: '{}'
 components:
   schemas:
     Error:
@@ -429,5 +484,77 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Obstacle"
+    RouteWithObstaclesRequest:
+      type: object
+      properties:
+        locations:
+          type: array
+          items:
+            type: object
+            properties:
+              lat:
+                type: number
+              lon:
+                type: number
+            required:
+              - lat
+              - lon
+          minItems: 2
+        language:
+          type: string
+          default: "ja-JP"
+        costing:
+          type: string
+          default: "auto"
+        detection_method:
+          type: string
+          enum: ["nodes", "distance", "both"]
+          default: "distance"
+          description: "障害物検出方法: nodes(ノード一致), distance(距離判定), both(両方)"
+        distance_threshold:
+          type: number
+          default: 0.5
+          minimum: 0.1
+          maximum: 10.0
+          description: "距離判定の閾値（キロメートル）"
+      required:
+        - locations
+    ValhallaRouteResponse:
+      type: object
+      properties:
+        trip:
+          type: object
+          properties:
+            locations:
+              type: array
+              items:
+                type: object
+            legs:
+              type: array
+              items:
+                type: object
+            summary:
+              type: object
+            status_message:
+              type: string
+            status:
+              type: integer
+            units:
+              type: string
+            language:
+              type: string
+        admins:
+          type: array
+          items:
+            type: object
+        units:
+          type: string
+        language:
+          type: string
+        obstacles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Obstacle'
+          description: "Obstacles found along the route"
     Empty:
       type: object

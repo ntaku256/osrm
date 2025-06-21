@@ -1,4 +1,5 @@
 import { Obstacle } from '@/types/obstacle';
+import { RouteWithObstaclesRequest, RouteResponse } from '@/types/route';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.example.com/api';
 
@@ -149,6 +150,37 @@ export const obstacleApi = {
     } catch (error) {
       return { 
         error: error instanceof Error ? error.message : 'Failed to delete obstacle',
+        statusCode: 500
+      };
+    }
+  },
+};
+
+export const routeApi = {
+  // Get route with obstacles
+  async getRouteWithObstacles(request: RouteWithObstaclesRequest): Promise<ApiResponse<RouteResponse>> {
+    try {
+      const requestBody = {
+        locations: request.locations,
+        language: request.language || 'ja-JP',
+        costing: request.costing || 'auto',
+        detection_method: request.detection_method || 'distance',
+        distance_threshold: request.distance_threshold || 0.5
+      };
+      
+      const response = await fetch(`${API_BASE_URL}/route-with-obstacles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify(requestBody),
+      });
+      
+      return handleResponse<RouteResponse>(response);
+    } catch (error) {
+      return { 
+        error: error instanceof Error ? error.message : 'Failed to get route with obstacles',
         statusCode: 500
       };
     }
