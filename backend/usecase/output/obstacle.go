@@ -7,7 +7,7 @@ type Obstacle struct {
 	Type        int        `json:"type"`
 	Description string     `json:"description"`
 	DangerLevel int        `json:"dangerLevel"`
-	Nodes       [2]float64 `json:"nodes"`
+	Nodes       []int64    `json:"nodes"`
 	NearestDistance float64 `json:"nearestDistance"`
 	NoNearbyRoad  bool       `json:"noNearbyRoad"`
 	ImageS3Key  string     `json:"image_s3_key"`
