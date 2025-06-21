@@ -278,7 +278,7 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                 <span className="font-medium">最寄りノード:</span> [{selectedObstacle.nodes?.[0] || 0}, {selectedObstacle.nodes?.[1] || 0}]
               </div>
               <div className="mb-2">
-                <span className="font-medium">最寄り距離:</span> {selectedObstacle.nearestDistance.toFixed(1)} m
+                <span className="font-medium">最寄り距離:</span> {(selectedObstacle.nearestDistance || 0).toFixed(1)} m
               </div>
               <div className="mb-2">
                 <span className="font-medium">道路なしフラグ:</span>
@@ -286,11 +286,11 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                   ? 'bg-red-100 text-red-700'
                   : 'bg-green-100 text-green-700'
                   }`}>
-                  {(selectedObstacle.noNearbyRoad) ? '✓ 道路なし確認済み' : ((selectedObstacle.nodes?.[0] || 0) === 0 && (selectedObstacle.nodes?.[1] || 0) === 0 && selectedObstacle.nearestDistance === 0 ? '✗ 未確認' : '•')}
+                  {(selectedObstacle.noNearbyRoad) ? '✓ 道路なし確認済み' : ((selectedObstacle.nodes?.[0] || 0) === 0 && (selectedObstacle.nodes?.[1] || 0) === 0 && (selectedObstacle.nearestDistance || 0) === 0 ? '✗ 未確認' : '•')}
                 </span>
               </div>
               <div className="mb-2">
-                <span className="font-medium">更新日時:</span> {new Date(selectedObstacle.createdAt).toLocaleString("ja-JP")}
+                <span className="font-medium">更新日時:</span> {selectedObstacle.createdAt ? new Date(selectedObstacle.createdAt).toLocaleString("ja-JP") : '不明'}
               </div>
               <div className="flex flex-col gap-2">
                 {mode === "edit" && selectedObstacle.id && (
@@ -369,7 +369,7 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
               // フィルタ適用
               const filteredObstacles = mode === "edit" ? (() => {
                 const isRoadless = (obstacle: ExtendedObstacle) =>
-                  (obstacle.nodes?.[0] || 0) === 0 && (obstacle.nodes?.[1] || 0) === 0 && obstacle.nearestDistance === 0
+                  (obstacle.nodes?.[0] || 0) === 0 && (obstacle.nodes?.[1] || 0) === 0 && (obstacle.nearestDistance || 0) === 0
 
                 switch (obstacleFilter) {
                   case 'hideRoadless':
@@ -404,7 +404,7 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                             <div className="font-medium">{getObstacleTypeIcon(obstacle.type)}</div>
                             {mode === "edit" && (
                               <div className="flex items-center gap-1">
-                                {(obstacle.nodes?.[0] || 0) === 0 && (obstacle.nodes?.[1] || 0) === 0 && obstacle.nearestDistance === 0 && (
+                                                                 {(obstacle.nodes?.[0] || 0) === 0 && (obstacle.nodes?.[1] || 0) === 0 && (obstacle.nearestDistance || 0) === 0 && (
                                   <div className={`text-xs px-1 rounded ${obstacle.noNearbyRoad
                                     ? 'bg-red-100 text-red-700'
                                     : 'bg-gray-100 text-gray-600'
@@ -416,7 +416,7 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                                   ? 'bg-red-50 text-red-600 border-red-200'
                                   : 'bg-gray-50 text-gray-600 border-gray-200'
                                   }`} title={obstacle.noNearbyRoad ? '道路なしフラグ: ON' : '道路なしフラグ: OFF'}>
-                                  {obstacle.noNearbyRoad ? '✓' : ((obstacle.nodes?.[0] || 0) === 0 && (obstacle.nodes?.[1] || 0) === 0 && obstacle.nearestDistance === 0 ? '✗' : '•')}
+                                  {obstacle.noNearbyRoad ? '✓' : ((obstacle.nodes?.[0] || 0) === 0 && (obstacle.nodes?.[1] || 0) === 0 && (obstacle.nearestDistance || 0) === 0 ? '✗' : '•')}
                                 </div>
                               </div>
                             )}

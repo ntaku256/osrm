@@ -237,7 +237,7 @@ export default function ObstacleMap({
           selectedObstacle &&
           selectedObstacle.position[0] === obstacle.position[0] &&
           selectedObstacle.position[1] === obstacle.position[1] &&
-          selectedObstacle.createdAt === obstacle.createdAt
+          (selectedObstacle.createdAt || '') === (obstacle.createdAt || '')
 
         // 選択状態に応じたマーカーアイコンを作成
         const markerIcon = L.divIcon({
@@ -279,7 +279,7 @@ export default function ObstacleMap({
 
         marker.addTo(markersLayerRef.current!)
         obstacleMarkersRef.current.set(
-          `${obstacle.position[0]}-${obstacle.position[1]}-${obstacle.createdAt}`,
+          `${obstacle.position[0]}-${obstacle.position[1]}-${obstacle.createdAt || 'no-date'}`,
           marker
         )
       })
@@ -391,10 +391,10 @@ export default function ObstacleMap({
         const isSelected =
           selectedObstacle.position[0] === obstacle.position[0] &&
           selectedObstacle.position[1] === obstacle.position[1] &&
-          selectedObstacle.createdAt === obstacle.createdAt
+          (selectedObstacle.createdAt || '') === (obstacle.createdAt || '')
 
         if (isSelected) {
-          const markerKey = `${obstacle.position[0]}-${obstacle.position[1]}-${obstacle.createdAt}`
+          const markerKey = `${obstacle.position[0]}-${obstacle.position[1]}-${obstacle.createdAt || 'no-date'}`
           const marker = obstacleMarkersRef.current.get(markerKey)
           if (marker) {
             // マーカーアイコンを更新
