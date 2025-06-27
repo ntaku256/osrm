@@ -203,11 +203,14 @@ paths:
           description: CORS support
           headers:
             Access-Control-Allow-Headers:
-              type: string
+              schema:
+                type: string
             Access-Control-Allow-Methods:
-              type: string
+              schema:
+                type: string
             Access-Control-Allow-Origin:
-              type: string
+              schema:
+                type: string
       x-amazon-apigateway-integration:
         type: mock
         requestTemplates:
@@ -267,11 +270,14 @@ paths:
           description: CORS support
           headers:
             Access-Control-Allow-Headers:
-              type: string
+              schema:
+                type: string
             Access-Control-Allow-Methods:
-              type: string
+              schema:
+                type: string
             Access-Control-Allow-Origin:
-              type: string
+              schema:
+                type: string
       x-amazon-apigateway-integration:
         type: mock
         requestTemplates:
@@ -284,7 +290,7 @@ paths:
               method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PUT'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
             responseTemplates:
-              application/json: '{}'
+              application/json: "{}"
   /route-with-obstacles:
     post:
       summary: Get route from Valhalla with obstacles information
@@ -293,20 +299,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RouteWithObstaclesRequest'
+              $ref: "#/components/schemas/RouteWithObstaclesRequest"
       responses:
-        '200':
+        "200":
           description: Route with obstacles
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ValhallaRouteResponse'
+                $ref: "#/components/schemas/ValhallaRouteResponse"
         default:
           description: Error Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
       x-amazon-apigateway-integration:
         credentials:
           Fn::Sub: ${ApiRole.Arn}
@@ -318,28 +324,289 @@ paths:
     options:
       summary: CORS support
       responses:
-        '200':
+        "200":
           description: CORS support
           headers:
             Access-Control-Allow-Headers:
-              type: string
+              schema:
+                type: string
             Access-Control-Allow-Methods:
-              type: string
+              schema:
+                type: string
             Access-Control-Allow-Origin:
-              type: string
+              schema:
+                type: string
       x-amazon-apigateway-integration:
         type: mock
         requestTemplates:
           application/json: '{"statusCode": 200}'
         responses:
-          '200':
+          "200":
             statusCode: 200
             responseParameters:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
               method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
             responseTemplates:
-              application/json: '{}'
+              application/json: "{}"
+  /locate:
+    post:
+      summary: Get nearest road information from Valhalla locate endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                locations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      lat:
+                        type: number
+                      lon:
+                        type: number
+                    required:
+                      - lat
+                      - lon
+                  minItems: 1
+                costing:
+                  type: string
+                  default: "pedestrian"
+              required:
+                - locations
+      responses:
+        "200":
+          description: Nearest road information
+          content:
+            application/json:
+              schema:
+                type: object
+                description: "Valhalla locate response (structure varies)"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ObstacleFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    options:
+      summary: CORS support
+      responses:
+        "200":
+          description: CORS support
+          headers:
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          "200":
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
+  /trace_attributes:
+    post:
+      summary: Get trace attributes from Valhalla
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Valhalla trace_attributes request body"
+      responses:
+        "200":
+          description: Trace attributes response
+          content:
+            application/json:
+              schema:
+                type: object
+                description: "Valhalla trace_attributes response"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ObstacleFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    options:
+      summary: CORS support
+      responses:
+        "200":
+          description: CORS support
+          headers:
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          "200":
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
+  /trace_route:
+    post:
+      summary: Get trace route from Valhalla
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Valhalla trace_route request body"
+      responses:
+        "200":
+          description: Trace route response
+          content:
+            application/json:
+              schema:
+                type: object
+                description: "Valhalla trace_route response"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ObstacleFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    options:
+      summary: CORS support
+      responses:
+        "200":
+          description: CORS support
+          headers:
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          "200":
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
+  /isochrone:
+    post:
+      summary: Get isochrone from Valhalla
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Valhalla isochrone request body"
+      responses:
+        "200":
+          description: Isochrone response
+          content:
+            application/json:
+              schema:
+                type: object
+                description: "Valhalla isochrone response"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ObstacleFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    options:
+      summary: CORS support
+      responses:
+        "200":
+          description: CORS support
+          headers:
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          "200":
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
 components:
   schemas:
     Error:
@@ -554,7 +821,7 @@ components:
         obstacles:
           type: array
           items:
-            $ref: '#/components/schemas/Obstacle'
+            $ref: "#/components/schemas/Obstacle"
           description: "Obstacles found along the route"
     Empty:
       type: object

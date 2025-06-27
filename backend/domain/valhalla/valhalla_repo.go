@@ -14,6 +14,7 @@ import (
 
 type ValhallaRepo interface {
 	GetRoute(ctx context.Context, request input.RouteWithObstacles) (*output.ValhallaRouteResponse, error)
+	GetTraceAttributes(ctx context.Context, req TraceAttributesRequest) (*TraceAttributesResponse, error)
 }
 
 type valhallaRepo struct {
@@ -37,7 +38,7 @@ func (r *valhallaRepo) GetRoute(ctx context.Context, request input.RouteWithObst
 	valhallaRequest := map[string]interface{}{
 		"locations": request.Locations,
 		"language":  request.Language,
-		"costing":   request.Costing,
+		"costing":   "pedestrian",
 	}
 	
 	requestBody, err := json.Marshal(valhallaRequest)
@@ -69,4 +70,58 @@ func (r *valhallaRepo) GetRoute(ctx context.Context, request input.RouteWithObst
 	}
 	
 	return &valhallaResponse, nil
+}
+
+// TraceAttributesRequestShapePoint型を追加
+// {"lat":..., "lon":...}
+type TraceAttributesRequestShapePoint struct {
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
+}
+
+type TraceAttributesRequest struct {
+	Shape      []TraceAttributesRequestShapePoint `json:"shape"`
+	Costing    string `json:"costing"`
+	ShapeMatch string `json:"shape_match"`
+}
+
+type TraceAttributesResponse struct {
+	Edges []struct {
+		WayID int64 `json:"way_id"`
+	} `json:"edges"`
+	// 必要に応じて他のフィールドも追加
+}
+
+// TraceAttributes呼び出し
+func (r *valhallaRepo) GetTraceAttributes(ctx context.Context, req TraceAttributesRequest) (*TraceAttributesResponse, error) {
+	url := fmt.Sprintf("%s/trace_attributes", r.baseURL)
+
+	requestBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal trace_attributes request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(requestBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create trace_attributes request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := r.client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call trace_attributes: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("trace_attributes API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var traceResp TraceAttributesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&traceResp); err != nil {
+		return nil, fmt.Errorf("failed to decode trace_attributes response: %w", err)
+	}
+
+	return &traceResp, nil
 } 

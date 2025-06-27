@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"time"
 
 	"webhook/domain/s3"
 	apiinput "webhook/pkg/api/input"
@@ -63,6 +66,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			Description: createRequest.Description,
 			DangerLevel: createRequest.DangerLevel,
 			Nodes:       createRequest.Nodes,
+			WayID:       createRequest.WayID,
 			NearestDistance: createRequest.NearestDistance,
 			NoNearbyRoad:  createRequest.NoNearbyRoad,
 		}
@@ -110,6 +114,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			Description: updateRequest.Description,
 			DangerLevel: updateRequest.DangerLevel,
 			Nodes:       updateRequest.Nodes,
+			WayID:       updateRequest.WayID,
 			NearestDistance: updateRequest.NearestDistance,
 			NoNearbyRoad:  updateRequest.NoNearbyRoad,
 		}
@@ -227,6 +232,22 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 		return jsonResponse(statusCode, routeResponse)
 
+	// POST /locate - Proxy to Valhalla locate endpoint
+	case request.HTTPMethod == "POST" && request.Resource == "/locate":
+		return proxyToValhalla(ctx, request, logger, "locate")
+
+	// POST /trace_attributes - Proxy to Valhalla trace_attributes endpoint
+	case request.HTTPMethod == "POST" && request.Resource == "/trace_attributes":
+		return proxyToValhalla(ctx, request, logger, "trace_attributes")
+
+	// POST /trace_route - Proxy to Valhalla trace_route endpoint
+	case request.HTTPMethod == "POST" && request.Resource == "/trace_route":
+		return proxyToValhalla(ctx, request, logger, "trace_route")
+
+	// POST /isochrone - Proxy to Valhalla isochrone endpoint
+	case request.HTTPMethod == "POST" && request.Resource == "/isochrone":
+		return proxyToValhalla(ctx, request, logger, "isochrone")
+
 	default:
 		return errorResponse(logger, request, http.StatusNotFound, "Not Found", nil, nil)
 	}
@@ -291,6 +312,47 @@ func errorResponse(logger *zap.Logger, request events.APIGatewayProxyRequest, st
 			"Access-Control-Allow-Origin": "*",
 		},
 		Body: string(body),
+	}, nil
+}
+
+// proxyToValhalla はValhallaエンドポイントへのプロキシ処理を共通化する
+func proxyToValhalla(ctx context.Context, request events.APIGatewayProxyRequest, logger *zap.Logger, endpoint string) (events.APIGatewayProxyResponse, error) {
+	valhallaURL := fmt.Sprintf("http://133.167.121.88:8080/%s", endpoint)
+	
+	// HTTPクライアントを作成
+	client := &http.Client{
+		Timeout: time.Second * 30,
+	}
+	
+	// リクエストを作成
+	req, err := http.NewRequestWithContext(ctx, "POST", valhallaURL, bytes.NewBuffer([]byte(request.Body)))
+	if err != nil {
+		return errorResponse(logger, request, http.StatusInternalServerError, fmt.Sprintf("Failed to create request to Valhalla %s", endpoint), nil, err)
+	}
+	
+	req.Header.Set("Content-Type", "application/json")
+	
+	// Valhallaにリクエスト送信
+	resp, err := client.Do(req)
+	if err != nil {
+		return errorResponse(logger, request, http.StatusInternalServerError, fmt.Sprintf("Failed to call Valhalla %s endpoint", endpoint), nil, err)
+	}
+	defer resp.Body.Close()
+	
+	// レスポンスボディを読み取り
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errorResponse(logger, request, http.StatusInternalServerError, fmt.Sprintf("Failed to read Valhalla %s response", endpoint), nil, err)
+	}
+	
+	// Valhallaのレスポンスをそのまま返す
+	return events.APIGatewayProxyResponse{
+		StatusCode: resp.StatusCode,
+		Headers: map[string]string{
+			"Content-Type":                "application/json",
+			"Access-Control-Allow-Origin": "*",
+		},
+		Body: string(responseBody),
 	}, nil
 }
 

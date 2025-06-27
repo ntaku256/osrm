@@ -14,14 +14,40 @@ import (
 
 // GetRouteWithObstacles はValhallaからルート情報を取得し、ルート上の障害物を検出して返す
 func GetRouteWithObstacles(ctx context.Context, request input.RouteWithObstacles) (*output.ValhallaRouteResponse, int, error) {
-	// Valhallaからルート情報を取得
 	valhallaRepo := valhalla.NewValhallaRepo()
+	// 1. /routeでルート取得
 	routeResponse, err := valhallaRepo.GetRoute(ctx, request)
 	if err != nil {
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to get route from Valhalla: %w", err)
 	}
 
-	// データベースから全ての障害物を取得
+	// 2. polylineデコード（最初のlegのみ）
+	var shapePoints []valhalla.TraceAttributesRequestShapePoint
+	if len(routeResponse.Trip.Legs) > 0 && routeResponse.Trip.Legs[0].Shape != "" {
+		decoded := decodePolyline(routeResponse.Trip.Legs[0].Shape, 6)
+		for _, pt := range decoded {
+			shapePoints = append(shapePoints, valhalla.TraceAttributesRequestShapePoint{Lat: pt[0], Lon: pt[1]})
+		}
+	}
+
+	// 3. /trace_attributesでway_idリスト取得
+	traceReq := valhalla.TraceAttributesRequest{
+		Shape:      shapePoints,
+		Costing:    "pedestrian",
+		ShapeMatch: "map_snap",
+	}
+	traceResp, err := valhallaRepo.GetTraceAttributes(ctx, traceReq)
+	if err != nil {
+		return nil, http.StatusInternalServerError, fmt.Errorf("failed to get trace_attributes from Valhalla: %w", err)
+	}
+	var routeWayIds []int64
+	for _, edge := range traceResp.Edges {
+		routeWayIds = append(routeWayIds, edge.WayID)
+	}
+	// ここでCloudWatchログに出力
+	fmt.Println("[routeWayIds]", routeWayIds)
+
+	// 4. DBから障害物取得
 	obstacleRepo, err := db.NewObstacleRepo(ctx)
 	if err != nil {
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to create obstacle repo: %w", err)
@@ -31,13 +57,29 @@ func GetRouteWithObstacles(ctx context.Context, request input.RouteWithObstacles
 		return nil, statusCode, fmt.Errorf("failed to get obstacles: %w", err)
 	}
 
-	// ルート上の障害物を検出（パラメータに基づいて判定方法を切り替え）
-	routeObstacles := findObstaclesOnRoute(routeResponse, *obstacles, request.DetectionMethod, request.DistanceThreshold)
+	// 5. ルート上の障害物を判定（way_id一致のみ）
+	routeObstacles := findObstaclesOnRouteByWayID(*obstacles, routeWayIds)
 
-	// 障害物情報をレスポンスに追加
+	// 6. 障害物情報をレスポンスに追加
 	routeResponse.Obstacles = convertObstaclesToOutput(routeObstacles)
 
 	return routeResponse, http.StatusOK, nil
+}
+
+// ルート上のway_idリストと障害物nodesを突合
+func findObstaclesOnRouteByWayID(obstacles []db.Obstacle, routeWayIds []int64) []db.Obstacle {
+	var result []db.Obstacle
+	for _, obs := range obstacles {
+		for _, node := range obs.Nodes {
+			for _, wayID := range routeWayIds {
+				if node == wayID {
+					result = append(result, obs)
+					break
+				}
+			}
+		}
+	}
+	return result
 }
 
 // findObstaclesOnRoute はルート上にある障害物を検出する
