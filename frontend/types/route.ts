@@ -7,10 +7,16 @@ export type ObstacleDetectionMethod = 'nodes' | 'distance' | 'both'
 
 export interface RouteWithObstaclesRequest {
   locations: RouteLocation[];
+  waypoints?: RouteLocation[];
+  exclude_locations?: RouteLocation[];
   language?: string;
   costing?: string;
   detection_method?: ObstacleDetectionMethod;
   distance_threshold?: number;
+  alternates?: {
+    destination_only?: boolean;
+    max_alternates?: number;
+  };
 }
 
 export interface RouteLocationInfo {
@@ -79,7 +85,8 @@ export interface RouteAdmin {
 }
 
 export interface RouteResponse {
-  trip: RouteTrip;
+  trip?: RouteTrip;       // 単一ルートの場合
+  alternates?: RouteTrip[]; // 複数ルートの場合
   admins: RouteAdmin[];
   units: string;
   language: string;

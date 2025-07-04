@@ -165,7 +165,13 @@ export const routeApi = {
         language: request.language || 'ja-JP',
         costing: request.costing || 'auto',
         detection_method: request.detection_method || 'distance',
-        distance_threshold: request.distance_threshold || 0.5
+        alternates: {
+          destination_only: request.alternates?.destination_only || false,
+          max_alternates: request.alternates?.max_alternates || 3,
+        },
+        distance_threshold: request.distance_threshold || 0.5,
+        ...(request.waypoints && request.waypoints.length > 0 && { waypoints: request.waypoints }),
+        ...(request.exclude_locations && request.exclude_locations.length > 0 && { exclude_locations: request.exclude_locations })
       };
       
       const response = await fetch(`${API_BASE_URL}/route-with-obstacles`, {

@@ -34,12 +34,16 @@ interface TrackPoint {
 export default function RoutePage() {
   const [startPosition, setStartPosition] = useState<[number, number] | null>(null)
   const [endPosition, setEndPosition] = useState<[number, number] | null>(null)
+  const [waypoints, setWaypoints] = useState<[number, number][]>([])
+  const [excludeLocations, setExcludeLocations] = useState<[number, number][]>([])
+  const [selectedObstacle, setSelectedObstacle] = useState<number | null>(null) // 選択された障害物のID
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0) // 選択されたルートのインデックス
   const [startInput, setStartInput] = useState("")
   const [endInput, setEndInput] = useState("")
   const [routeData, setRouteData] = useState<RouteResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [clickMode, setClickMode] = useState<'start' | 'end' | null>(null)
+  const [clickMode, setClickMode] = useState<'start' | 'end' | 'waypoint' | 'exclude' | null>(null)
   const [detectionMethod, setDetectionMethod] = useState<ObstacleDetectionMethod>('distance')
   const [distanceThreshold, setDistanceThreshold] = useState<number>(0.02)
 
@@ -205,7 +209,7 @@ export default function RoutePage() {
     alert(`移動記録を保存しました（${trackPoints.length}ポイント）`)
   }
 
-  const handleMapClick = (position: [number, number], mode: 'start' | 'end') => {
+  const handleMapClick = (position: [number, number], mode: 'start' | 'end' | 'waypoint' | 'exclude') => {
     console.log("=== HANDLE MAP CLICK DEBUG ===")
     console.log("Position:", position)
     console.log("Mode from map:", mode)
@@ -223,6 +227,16 @@ export default function RoutePage() {
       setEndInput(`${position[0].toFixed(6)}, ${position[1].toFixed(6)}`)
       setClickMode(null)
       console.log("✅ END position set, clickMode reset to null")
+    } else if (mode === 'waypoint') {
+      console.log("✅ Processing WAYPOINT click")
+      setWaypoints(prev => [...prev, position])
+      setClickMode(null)
+      console.log("✅ WAYPOINT added, clickMode reset to null")
+    } else if (mode === 'exclude') {
+      console.log("✅ Processing EXCLUDE click")
+      setExcludeLocations(prev => [...prev, position])
+      setClickMode(null)
+      console.log("✅ EXCLUDE location added, clickMode reset to null")
     }
     console.log("=== END HANDLE MAP CLICK DEBUG ===")
   }
@@ -272,10 +286,16 @@ export default function RoutePage() {
 
       const response = await routeApi.getRouteWithObstacles({
         locations,
+        waypoints: waypoints.length > 0 ? waypoints.map(wp => ({ lat: wp[0], lon: wp[1] })) : undefined,
+        exclude_locations: excludeLocations.length > 0 ? excludeLocations.map(ex => ({ lat: ex[0], lon: ex[1] })) : undefined,
         language: 'ja-JP',
-        costing: 'auto',
+        costing: 'pedestrian',
         detection_method: detectionMethod,
-        distance_threshold: distanceThreshold
+        distance_threshold: distanceThreshold,
+        alternates: {
+          destination_only: true,
+          max_alternates: 3,
+        },
       })
 
       if (response.error) {
@@ -295,6 +315,10 @@ export default function RoutePage() {
     setRouteData(null)
     setStartPosition(null)
     setEndPosition(null)
+    setWaypoints([])
+    setExcludeLocations([])
+    setSelectedObstacle(null)
+    setSelectedRouteIndex(0)
     setStartInput("")
     setEndInput("")
     setError(null)
@@ -313,6 +337,45 @@ export default function RoutePage() {
     const newMode = clickMode === 'end' ? null : 'end'
     console.log("Setting click mode for end:", newMode)
     setClickMode(newMode)
+  }
+
+  const setClickModeForWaypoint = () => {
+    const newMode = clickMode === 'waypoint' ? null : 'waypoint'
+    console.log("Setting click mode for waypoint:", newMode)
+    setClickMode(newMode)
+  }
+
+  const setClickModeForExclude = () => {
+    const newMode = clickMode === 'exclude' ? null : 'exclude'
+    console.log("Setting click mode for exclude:", newMode)
+    setClickMode(newMode)
+  }
+
+  // 中継地点を削除
+  const removeWaypoint = (index: number) => {
+    setWaypoints(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // 回避地点を削除
+  const removeExcludeLocation = (index: number) => {
+    setExcludeLocations(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // 障害物から回避地点を追加
+  const addObstacleToExcludeList = (position: [number, number]) => {
+    // 既に追加されているかチェック
+    const exists = excludeLocations.some(loc => 
+      Math.abs(loc[0] - position[0]) < 0.0001 && Math.abs(loc[1] - position[1]) < 0.0001
+    )
+    
+    if (!exists) {
+      setExcludeLocations(prev => [...prev, position])
+    }
+  }
+
+  // 障害物を選択/選択解除
+  const toggleObstacleSelection = (obstacleId: number) => {
+    setSelectedObstacle(prev => prev === obstacleId ? null : obstacleId)
   }
 
   // サンプル座標をセット
@@ -427,6 +490,90 @@ export default function RoutePage() {
                   )}
                 </div>
 
+                {/* 中継地点 */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">中継地点</label>
+                    <Button
+                      variant={clickMode === 'waypoint' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={setClickModeForWaypoint}
+                      className={`${clickMode === 'waypoint' ? 'bg-blue-600 hover:bg-blue-700 animate-pulse' : 'hover:bg-blue-50'} transition-all`}
+                    >
+                      <MapPin className="h-4 w-4 mr-1" />
+                      追加
+                    </Button>
+                  </div>
+                  
+                  {clickMode === 'waypoint' && (
+                    <div className="text-xs text-blue-600 font-medium animate-pulse bg-blue-50 p-2 rounded">
+                      🗺️ 地図をクリックして中継地点を追加してください
+                    </div>
+                  )}
+                  
+                  {waypoints.length > 0 && (
+                    <div className="space-y-1 max-h-20 overflow-y-auto">
+                      {waypoints.map((waypoint, index) => (
+                        <div key={index} className="flex items-center justify-between bg-blue-50 border border-blue-200 p-2 rounded text-xs">
+                          <span className="text-gray-900 font-medium">
+                            {index + 1}. {waypoint[0].toFixed(6)}, {waypoint[1].toFixed(6)}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeWaypoint(index)}
+                            className="h-6 w-6 p-0 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700 border border-red-300"
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 回避地点 */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">回避地点</label>
+                    <Button
+                      variant={clickMode === 'exclude' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={setClickModeForExclude}
+                      className={`${clickMode === 'exclude' ? 'bg-gray-600 hover:bg-gray-700 animate-pulse' : 'hover:bg-gray-50'} transition-all`}
+                    >
+                      <MapPin className="h-4 w-4 mr-1" />
+                      追加
+                    </Button>
+                  </div>
+                  
+                  {clickMode === 'exclude' && (
+                    <div className="text-xs text-gray-600 font-medium animate-pulse bg-gray-50 p-2 rounded">
+                      🗺️ 地図をクリックして回避地点を追加してください
+                    </div>
+                  )}
+                  
+                  {excludeLocations.length > 0 && (
+                    <div className="space-y-1 max-h-20 overflow-y-auto">
+                      {excludeLocations.map((exclude, index) => (
+                        <div key={index} className="flex items-center justify-between bg-gray-50 border border-gray-300 p-2 rounded text-xs">
+                          <span className="text-gray-900 font-medium">
+                            {index + 1}. {exclude[0].toFixed(6)}, {exclude[1].toFixed(6)}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeExcludeLocation(index)}
+                            className="h-6 w-6 p-0 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700 border border-red-300"
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* 障害物検出方法 */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">障害物検出方法</label>
@@ -476,7 +623,7 @@ export default function RoutePage() {
                   <Button
                     onClick={searchRoute}
                     disabled={!startPosition || !endPosition || isLoading}
-                    className="w-full"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                   >
                     {isLoading ? 'ルート検索中...' : 'ルート検索'}
                   </Button>
@@ -490,7 +637,7 @@ export default function RoutePage() {
                   <Button
                     variant="outline"
                     onClick={resetRoute}
-                    className="w-full"
+                    className="w-full border-red-300 text-red-700 hover:bg-red-50"
                   >
                     リセット
                   </Button>
@@ -553,7 +700,7 @@ export default function RoutePage() {
                     <Button
                       onClick={startRecording}
                       disabled={!isGpsSupported}
-                      className="w-full bg-green-600 hover:bg-green-700"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
                     >
                       <Play className="h-4 w-4 mr-2" />
                       移動記録開始
@@ -561,7 +708,7 @@ export default function RoutePage() {
                   ) : (
                     <Button
                       onClick={stopRecording}
-                      className="w-full bg-red-600 hover:bg-red-700"
+                      className="w-full bg-red-600 hover:bg-red-700 text-white"
                     >
                       <Square className="h-4 w-4 mr-2" />
                       記録停止
@@ -574,7 +721,7 @@ export default function RoutePage() {
                         variant="outline"
                         onClick={saveTrack}
                         disabled={isRecording}
-                        className="flex-1"
+                        className="flex-1 border-blue-300 text-blue-700 hover:bg-blue-50"
                       >
                         <Save className="h-4 w-4 mr-2" />
                         保存
@@ -583,7 +730,7 @@ export default function RoutePage() {
                         variant="outline"
                         onClick={clearTrack}
                         disabled={isRecording}
-                        className="flex-1"
+                        className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
                         クリア
@@ -603,6 +750,57 @@ export default function RoutePage() {
               </CardContent>
             </Card>
 
+            {/* 複数ルート選択 */}
+            {routeData && routeData.alternates && routeData.alternates.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    🛣️ ルート選択
+                  </CardTitle>
+                  <CardDescription>
+                    {routeData.alternates.length}つのルートが見つかりました
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {routeData.alternates.map((route, index) => (
+                    <div
+                      key={index}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                        selectedRouteIndex === index
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-blue-300 hover:bg-blue-25'
+                      }`}
+                      onClick={() => setSelectedRouteIndex(index)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                            selectedRouteIndex === index ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-700'
+                          }`}>
+                            {index + 1}
+                          </div>
+                          <span className="font-medium text-gray-900">
+                            ルート {index + 1}
+                          </span>
+                        </div>
+                        {selectedRouteIndex === index && (
+                          <div className="text-blue-500 text-xs font-medium">選択中</div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-xs text-gray-600 mt-2">
+                        <div>
+                          <span className="font-medium">距離:</span> {route.summary.length.toFixed(1)}km
+                        </div>
+                        <div>
+                          <span className="font-medium">時間:</span> {Math.round(route.summary.time / 60)}分
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
             {/* ルート情報表示 */}
             {routeData && (
               <Card>
@@ -614,13 +812,23 @@ export default function RoutePage() {
                     <div>
                       <p className="text-gray-600">距離</p>
                       <p className="font-semibold">
-                        {routeData.trip?.summary?.length?.toFixed(1)}km
+                        {(() => {
+                          if (routeData.alternates && routeData.alternates.length > 0) {
+                            return routeData.alternates[selectedRouteIndex]?.summary?.length?.toFixed(1)
+                          }
+                          return routeData.trip?.summary?.length?.toFixed(1)
+                        })()}km
                       </p>
                     </div>
                     <div>
                       <p className="text-gray-600">時間</p>
                       <p className="font-semibold">
-                        {Math.round((routeData.trip?.summary?.time || 0) / 60)}分
+                        {(() => {
+                          const time = routeData.alternates && routeData.alternates.length > 0
+                            ? routeData.alternates[selectedRouteIndex]?.summary?.time || 0
+                            : routeData.trip?.summary?.time || 0
+                          return Math.round(time / 60)
+                        })()}分
                       </p>
                     </div>
                   </div>
@@ -630,13 +838,75 @@ export default function RoutePage() {
                       <p className="text-red-600 font-medium mb-2">
                         ⚠️ 障害物 {routeData.obstacles.length}個検出
                       </p>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
                         {routeData.obstacles.map((obstacle, index) => (
-                          <div key={index} className="text-xs p-2 bg-red-50 rounded">
-                            <p className="font-medium">{obstacle.description}</p>
-                            <p className="text-gray-600">
-                              危険度: {obstacle.dangerLevel === 0 ? '低' : obstacle.dangerLevel === 1 ? '中' : '高'}
-                            </p>
+                          <div 
+                            key={index} 
+                            className={`text-xs p-2 rounded cursor-pointer transition-all ${
+                              selectedObstacle === obstacle.id 
+                                ? 'bg-red-200 border-2 border-red-400' 
+                                : 'bg-red-50 border border-red-100 hover:bg-red-100'
+                            }`}
+                            onClick={() => toggleObstacleSelection(obstacle.id)}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900">{obstacle.description}</p>
+                                <p className="text-gray-700">
+                                  危険度: {obstacle.dangerLevel === 0 ? '低' : obstacle.dangerLevel === 1 ? '中' : '高'}
+                                </p>
+                                <p className="text-gray-600 text-xs">
+                                  {obstacle.position[0].toFixed(6)}, {obstacle.position[1].toFixed(6)}
+                                </p>
+                                {selectedObstacle === obstacle.id && (
+                                  <p className="text-red-600 text-xs font-medium mt-1">
+                                    📍 地図上でハイライト表示中
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex flex-col gap-1 ml-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    addObstacleToExcludeList(obstacle.position)
+                                  }}
+                                  className={`h-6 px-2 text-xs border ${
+                                    excludeLocations.some(loc => 
+                                      Math.abs(loc[0] - obstacle.position[0]) < 0.0001 && 
+                                      Math.abs(loc[1] - obstacle.position[1]) < 0.0001
+                                    )
+                                      ? 'bg-green-100 text-green-700 border-green-300 cursor-not-allowed'
+                                      : 'bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:text-orange-800'
+                                  }`}
+                                  disabled={excludeLocations.some(loc => 
+                                    Math.abs(loc[0] - obstacle.position[0]) < 0.0001 && 
+                                    Math.abs(loc[1] - obstacle.position[1]) < 0.0001
+                                  )}
+                                >
+                                  {excludeLocations.some(loc => 
+                                    Math.abs(loc[0] - obstacle.position[0]) < 0.0001 && 
+                                    Math.abs(loc[1] - obstacle.position[1]) < 0.0001
+                                  ) ? '追加済み' : '回避'}
+                                </Button>
+                                <Button
+                                  variant={selectedObstacle === obstacle.id ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleObstacleSelection(obstacle.id)
+                                  }}
+                                  className={`h-6 px-2 text-xs border ${
+                                    selectedObstacle === obstacle.id
+                                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                                      : 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200 hover:text-blue-800'
+                                  }`}
+                                >
+                                  {selectedObstacle === obstacle.id ? '選択中' : '選択'}
+                                </Button>
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -649,29 +919,36 @@ export default function RoutePage() {
 
           {/* マップ */}
           <div className="lg:col-span-2">
-            <Card className="h-[700px]">
+            <Card className="h-[1000px]">
               <CardContent className="p-0 h-full">
                 <RouteMap
                   routeData={routeData}
+                  selectedRouteIndex={selectedRouteIndex}
                   isLoading={isLoading}
                   startPosition={startPosition}
                   endPosition={endPosition}
+                  waypoints={waypoints}
+                  excludeLocations={excludeLocations}
+                  selectedObstacle={selectedObstacle}
                   onMapClick={handleMapClick}
+                  onAddToExcludeList={addObstacleToExcludeList}
                   clickMode={clickMode}
                   currentPosition={currentPosition}
                   trackPoints={trackPoints.map(point => [point.lat, point.lon] as [number, number])}
                   isRecording={isRecording}
                 />
-                {/* デバッグ用：現在の状態表示 */}
+                {/* デバッグ用：現在の状態表示
                 {process.env.NODE_ENV === 'development' && (
                   <div className="absolute bottom-2 right-2 bg-yellow-100 p-2 rounded text-xs">
                     <div>clickMode: {clickMode || 'null'}</div>
                     <div>start: {startPosition ? 'set' : 'null'}</div>
                     <div>end: {endPosition ? 'set' : 'null'}</div>
+                    <div>waypoints: {waypoints.length}</div>
+                    <div>excludes: {excludeLocations.length}</div>
                     <div>recording: {isRecording ? 'yes' : 'no'}</div>
                     <div>trackPoints: {trackPoints.length}</div>
                   </div>
-                )}
+                )} */}
               </CardContent>
             </Card>
           </div>

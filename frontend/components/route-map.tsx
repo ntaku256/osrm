@@ -20,18 +20,24 @@ const fixLeafletIcon = () => {
 
 interface RouteMapProps {
   routeData: RouteResponse | null
+  selectedRouteIndex?: number
   isLoading: boolean
   startPosition: [number, number] | null
   endPosition: [number, number] | null
-  onMapClick: (position: [number, number], mode: 'start' | 'end') => void
-  clickMode?: 'start' | 'end' | null
+  onMapClick: (position: [number, number], mode: 'start' | 'end' | 'waypoint' | 'exclude') => void
+  clickMode?: 'start' | 'end' | 'waypoint' | 'exclude' | null
   currentPosition?: [number, number] | null
   trackPoints?: [number, number][]
   isRecording?: boolean
+  waypoints?: [number, number][]
+  excludeLocations?: [number, number][]
+  selectedObstacle?: number | null
+  onAddToExcludeList?: (position: [number, number]) => void
 }
 
 export default function RouteMap({
   routeData,
+  selectedRouteIndex = 0,
   isLoading,
   startPosition,
   endPosition,
@@ -40,7 +46,21 @@ export default function RouteMap({
   currentPosition,
   trackPoints = [],
   isRecording = false,
+  waypoints = [],
+  excludeLocations = [],
+  selectedObstacle = null,
+  onAddToExcludeList,
 }: RouteMapProps) {
+  // 選択されたルートを取得するヘルパー関数
+  const getSelectedRoute = () => {
+    if (!routeData) return null
+    
+    if (routeData.alternates && routeData.alternates.length > 0) {
+      return routeData.alternates[selectedRouteIndex] || routeData.alternates[0]
+    }
+    
+    return routeData.trip || null
+  }
   const mapRef = useRef(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const routeLayerRef = useRef(null)
@@ -93,7 +113,8 @@ export default function RouteMap({
           console.log("Current clickModeRef:", clickModeRef.current)
           console.log("Props clickMode:", clickMode)
 
-          if (clickModeRef.current === 'start' || clickModeRef.current === 'end') {
+          if (clickModeRef.current === 'start' || clickModeRef.current === 'end' || 
+              clickModeRef.current === 'waypoint' || clickModeRef.current === 'exclude') {
             console.log("✅ Mode is active - calling onMapClick")
             const { lat, lng } = e.latlng
             onMapClick([lat, lng], clickModeRef.current)
@@ -156,7 +177,8 @@ export default function RouteMap({
         color: isRecording ? '#3b82f6' : '#6b7280',
         weight: 4,
         opacity: 0.8,
-        dashArray: isRecording ? undefined : '5, 5'
+        dashArray: isRecording ? undefined : '5, 5',
+        interactive: false  // クリックイベントを無効化
       }).addTo(trackLayerRef.current)
 
       // 記録中の場合、軌跡の開始点にマーカーを追加
@@ -214,7 +236,41 @@ export default function RouteMap({
           L.DomEvent.stopPropagation(e)
         })
     }
-  }, [mapReady, startPosition, endPosition])
+
+    // 中継地点マーカー
+    waypoints.forEach((waypoint, index) => {
+      const waypointIcon = L.divIcon({
+        className: "route-marker",
+        html: `<div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold border-2 border-white shadow-lg">${index + 1}</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      })
+
+      L.marker(waypoint, { icon: waypointIcon })
+        .addTo(markersLayerRef.current)
+        .bindPopup(`中継地点 ${index + 1}`)
+        .on('click', (e) => {
+          L.DomEvent.stopPropagation(e)
+        })
+    })
+
+    // 回避地点マーカー
+    excludeLocations.forEach((exclude, index) => {
+      const excludeIcon = L.divIcon({
+        className: "route-marker",
+        html: `<div class="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center text-white font-bold border-2 border-white shadow-lg">×</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      })
+
+      L.marker(exclude, { icon: excludeIcon })
+        .addTo(markersLayerRef.current)
+        .bindPopup(`回避地点 ${index + 1}`)
+        .on('click', (e) => {
+          L.DomEvent.stopPropagation(e)
+        })
+    })
+  }, [mapReady, startPosition, endPosition, waypoints, excludeLocations])
 
   // ルートと障害物の表示
   useEffect(() => {
@@ -232,73 +288,121 @@ export default function RouteMap({
     if (!routeData) return
 
     try {
-      // ルートの描画
-      if (routeData.trip && routeData.trip.legs) {
-        routeData.trip.legs.forEach((leg) => {
-          if (leg.shape) {
-            // 両方の精度でテストデコード
-            const testResults = testDecodeWithBothPrecisions(leg.shape)
-            console.log("Testing precision 5:", testResults.precision5.slice(0, 3))
-            console.log("Testing precision 6:", testResults.precision6.slice(0, 3))
-
-            // Valhalla用精度6でデコード
-            const coordinates = decodePolyline(leg.shape, 6)
-
-            console.log("Route coordinates bounds:", {
-              minLat: Math.min(...coordinates.map(c => c[0])),
-              maxLat: Math.max(...coordinates.map(c => c[0])),
-              minLng: Math.min(...coordinates.map(c => c[1])),
-              maxLng: Math.max(...coordinates.map(c => c[1]))
-            })
-
-            // 座標が日本の範囲内かチェック
-            const isInJapanRange = coordinates.every(([lat, lng]) =>
-              lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
-            )
-            console.log("Coordinates in Japan range:", isInJapanRange)
-
-            // もし精度6で範囲外なら精度5を試す
-            if (!isInJapanRange && coordinates.length > 0) {
-              console.log("Trying precision 5 instead...")
-              const coordinatesPrecision5 = decodePolyline(leg.shape, 5)
-              const isInJapanRangeP5 = coordinatesPrecision5.every(([lat, lng]) =>
+      // 複数ルートの描画
+      let allRouteBounds = []
+      
+      if (routeData.alternates && routeData.alternates.length > 0) {
+        // 複数ルートがある場合、全ルートを表示
+        routeData.alternates.forEach((route, routeIndex) => {
+          const isSelected = routeIndex === selectedRouteIndex
+          
+          route.legs.forEach((leg) => {
+            if (leg.shape) {
+              const coordinates = decodePolyline(leg.shape, 6)
+              
+              // 座標が日本の範囲内かチェック
+              const isInJapanRange = coordinates.every(([lat, lng]) =>
                 lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
               )
-              console.log("Precision 5 coordinates in Japan range:", isInJapanRangeP5)
+              
+              // もし精度6で範囲外なら精度5を試す
+              if (!isInJapanRange && coordinates.length > 0) {
+                const coordinatesPrecision5 = decodePolyline(leg.shape, 5)
+                const isInJapanRangeP5 = coordinatesPrecision5.every(([lat, lng]) =>
+                  lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
+                )
+                
+                if (isInJapanRangeP5) {
+                  coordinates.length = 0
+                  coordinates.push(...coordinatesPrecision5)
+                }
+              }
 
-              if (isInJapanRangeP5) {
-                // 精度5の方が正しい場合はそちらを使用
-                coordinates.length = 0
-                coordinates.push(...coordinatesPrecision5)
+              // ルートライン
+              const routeLine = L.polyline(coordinates, {
+                color: isSelected ? '#3388ff' : '#94a3b8',
+                weight: isSelected ? 6 : 4,
+                opacity: isSelected ? 0.8 : 0.5,
+                interactive: false
+              }).addTo(routeLayerRef.current)
+
+              allRouteBounds.push(...coordinates)
+              
+              // 選択されたルートに番号ラベルを追加
+              if (isSelected && coordinates.length > 0) {
+                const midPoint = coordinates[Math.floor(coordinates.length / 2)]
+                const routeLabel = L.divIcon({
+                  className: "route-label",
+                  html: `<div class="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold border-2 border-white shadow-lg">${routeIndex + 1}</div>`,
+                  iconSize: [24, 24],
+                  iconAnchor: [12, 12],
+                })
+                L.marker(midPoint, { icon: routeLabel }).addTo(routeLayerRef.current)
               }
             }
-
-            // ルートライン
-            const routeLine = L.polyline(coordinates, {
-              color: '#3388ff',
-              weight: 6,
-              opacity: 0.8,
-            }).addTo(routeLayerRef.current)
-              .on('click', (e) => {
-                L.DomEvent.stopPropagation(e)
-              })
-
-            // ルートの境界にマップをフィット
-            mapRef.current.fitBounds(routeLine.getBounds(), { padding: [20, 20] })
-          }
+          })
         })
+      } else {
+        // 単一ルートの場合
+        const selectedRoute = getSelectedRoute()
+        if (selectedRoute && selectedRoute.legs) {
+          selectedRoute.legs.forEach((leg) => {
+            if (leg.shape) {
+              const coordinates = decodePolyline(leg.shape, 6)
+              
+              // 座標が日本の範囲内かチェック
+              const isInJapanRange = coordinates.every(([lat, lng]) =>
+                lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
+              )
+              
+              // もし精度6で範囲外なら精度5を試す
+              if (!isInJapanRange && coordinates.length > 0) {
+                const coordinatesPrecision5 = decodePolyline(leg.shape, 5)
+                const isInJapanRangeP5 = coordinatesPrecision5.every(([lat, lng]) =>
+                  lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
+                )
+                
+                if (isInJapanRangeP5) {
+                  coordinates.length = 0
+                  coordinates.push(...coordinatesPrecision5)
+                }
+              }
+
+              // ルートライン
+              const routeLine = L.polyline(coordinates, {
+                color: '#3388ff',
+                weight: 6,
+                opacity: 0.8,
+                interactive: false
+              }).addTo(routeLayerRef.current)
+
+              allRouteBounds.push(...coordinates)
+            }
+          })
+        }
+      }
+      
+      // 全ルートの境界にマップをフィット
+      if (allRouteBounds.length > 0) {
+        const bounds = L.latLngBounds(allRouteBounds)
+        mapRef.current.fitBounds(bounds, { padding: [20, 20] })
       }
 
       // 障害物マーカーの表示
       if (routeData.obstacles && routeData.obstacles.length > 0) {
         routeData.obstacles.forEach((obstacle) => {
+          const isSelected = selectedObstacle === obstacle.id
           const obstacleIcon = L.divIcon({
             className: "obstacle-marker",
-            html: `<div class="w-8 h-8 rounded-full flex items-center justify-center text-white border-2 border-white shadow-lg animate-pulse ${getDangerLevelColor(obstacle.dangerLevel)}">
+            html: `<div class="w-10 h-10 rounded-full flex items-center justify-center text-white border-2 ${
+              isSelected ? 'border-yellow-400 shadow-2xl animate-bounce' : 'border-white shadow-lg animate-pulse'
+            } ${getDangerLevelColor(obstacle.dangerLevel)} ${
+              isSelected ? 'ring-4 ring-yellow-400 ring-opacity-50' : ''
+            }">
               ${getObstacleTypeIcon(obstacle.type)}
             </div>`,
-            iconSize: [32, 32],
-            iconAnchor: [16, 16],
+            iconSize: isSelected ? [40, 40] : [32, 32],
+            iconAnchor: isSelected ? [20, 20] : [16, 16],
           })
 
           const marker = L.marker(obstacle.position, { icon: obstacleIcon })
@@ -307,25 +411,66 @@ export default function RouteMap({
               L.DomEvent.stopPropagation(e)
             })
 
+          // 回避地点に既に追加されているかチェック
+          const isAlreadyExcluded = excludeLocations.some(loc => 
+            Math.abs(loc[0] - obstacle.position[0]) < 0.0001 && 
+            Math.abs(loc[1] - obstacle.position[1]) < 0.0001
+          )
+
           // ポップアップの作成
           const popupContent = `
-             <div class="p-2">
+             <div class="p-3">
                <h3 class="font-bold text-sm mb-1">${getObstacleTypeName(obstacle.type)}</h3>
-               <p class="text-xs text-gray-600 mb-1">${obstacle.description}</p>
-               <div class="flex items-center gap-1">
+               <p class="text-xs text-gray-700 mb-2">${obstacle.description}</p>
+               <div class="flex items-center gap-1 mb-2">
                  <span class="text-xs px-2 py-1 rounded ${getDangerLevelBadgeColor(obstacle.dangerLevel)}">
                    ${getDangerLevelName(obstacle.dangerLevel)}
                  </span>
                </div>
+               ${isSelected ? '<p class="text-xs text-yellow-600 font-medium mb-2">📍 選択中の障害物</p>' : ''}
+               <p class="text-xs text-gray-500 mb-2">座標: ${obstacle.position[0].toFixed(6)}, ${obstacle.position[1].toFixed(6)}</p>
+               <button 
+                 id="exclude-btn-${obstacle.id}" 
+                 class="w-full px-2 py-1 text-xs rounded border transition-colors ${
+                   isAlreadyExcluded 
+                     ? 'bg-green-100 text-green-700 border-green-300 cursor-not-allowed' 
+                     : 'bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:text-orange-800'
+                 }"
+                 ${isAlreadyExcluded ? 'disabled' : ''}
+               >
+                 ${isAlreadyExcluded ? '回避地点に追加済み' : '回避地点に追加'}
+               </button>
              </div>
            `
-          marker.bindPopup(popupContent)
+          
+          const popup = L.popup().setContent(popupContent)
+          marker.bindPopup(popup)
+
+          // ポップアップが開かれた時にイベントリスナーを追加
+          marker.on('popupopen', () => {
+            const excludeBtn = document.getElementById(`exclude-btn-${obstacle.id}`)
+            if (excludeBtn && !isAlreadyExcluded && onAddToExcludeList) {
+              excludeBtn.addEventListener('click', () => {
+                onAddToExcludeList(obstacle.position)
+                // ボタンの状態を更新
+                excludeBtn.textContent = '回避地点に追加済み'
+                excludeBtn.className = 'w-full px-2 py-1 text-xs rounded border bg-green-100 text-green-700 border-green-300 cursor-not-allowed'
+                excludeBtn.setAttribute('disabled', 'true')
+              })
+            }
+          })
+
+          // 選択された障害物の場合、自動でポップアップを開く
+          if (isSelected) {
+            marker.openPopup()
+          }
         })
       }
 
       // ルート情報表示
-      if (routeData.trip?.summary) {
-        const summary = routeData.trip.summary
+      const selectedRoute = getSelectedRoute()
+      if (selectedRoute?.summary) {
+        const summary = selectedRoute.summary
         const totalTime = Math.round(summary.time / 60) // 分に変換
         const totalDistance = summary.length.toFixed(1) // km
 
@@ -335,7 +480,7 @@ export default function RouteMap({
     } catch (error) {
       console.error("Failed to display route:", error)
     }
-  }, [mapReady, routeData])
+  }, [mapReady, routeData, selectedObstacle, selectedRouteIndex])
 
   // クリーンアップ
   useEffect(() => {
@@ -354,7 +499,7 @@ export default function RouteMap({
       <div
         ref={mapContainerRef}
         className="w-full h-full rounded-lg overflow-hidden"
-        style={{ minHeight: '600px' }}
+        style={{ minHeight: '800px' }}
       />
 
       {/* Leaflet読み込み中 */}
@@ -379,18 +524,18 @@ export default function RouteMap({
       {clickMode && (
         <div className="absolute top-4 left-4 bg-blue-600 text-white p-3 rounded-lg shadow-lg z-[1000]">
           <div className="text-sm font-medium">
-            {clickMode === 'start' ? '🎯 出発地点を選択中' : '🎯 目的地を選択中'}
+            {clickMode === 'start' ? '🎯 出発地点を選択中' : clickMode === 'end' ? '🎯 目的地を選択中' : clickMode === 'waypoint' ? '🎯 ウェイトポイントを選択中' : '🎯 除外地点を選択中'}
           </div>
           <div className="text-xs mt-1">地図をクリックしてください</div>
         </div>
       )}
 
       {/* デバッグ情報 */}
-      {process.env.NODE_ENV === 'development' && (
+      {/* {process.env.NODE_ENV === 'development' && (
         <div className="absolute bottom-4 left-4 bg-black text-white px-2 py-1 rounded text-xs z-[1000]">
-          Mode: {clickMode || 'none'} | Ready: {mapReady ? 'yes' : 'no'}
+          Mode: {clickMode || 'none'} | Ready: {mapReady ? 'yes' : 'no'} | Selected: {selectedObstacle || 'none'}
         </div>
-      )}
+      )} */}
       {routeData && !clickMode && (
         <div className="absolute top-4 left-4 bg-white p-3 rounded-lg shadow-lg max-w-xs">
           <h3 className="font-bold text-sm mb-2">ルート情報</h3>
