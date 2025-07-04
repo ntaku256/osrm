@@ -83,9 +83,12 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
 
     try {
       let nodes: [number, number] | undefined = undefined
-      if (currentNearestRoad?.nodes && currentNearestRoad.nodes.length >= 2) {
-        const sorted = [...currentNearestRoad.nodes].sort((a, b) => a - b)
-        nodes = [sorted[0], sorted[1]]
+      let way_id: number | undefined = undefined
+      if (Array.isArray(currentNearestRoad?.nodes) && currentNearestRoad.nodes.length >= 1) {
+        way_id = currentNearestRoad.nodes[0]
+      }
+      if (Array.isArray(currentNearestRoad?.nodes) && currentNearestRoad.nodes.length >= 2) {
+        nodes = [currentNearestRoad.nodes[0], currentNearestRoad.nodes[1]]
       }
       const obstacleData = {
         position,
@@ -93,6 +96,7 @@ export default function ObstacleForm({ position, nearestRoad, onSubmit, onCancel
         description,
         dangerLevel,
         nodes,
+        way_id,
         nearestDistance: currentNearestRoad?.distance !== undefined ? currentNearestRoad.distance : 0,
         noNearbyRoad,
       }
