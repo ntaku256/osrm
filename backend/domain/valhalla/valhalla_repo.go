@@ -35,10 +35,31 @@ func (r *valhallaRepo) GetRoute(ctx context.Context, request input.RouteWithObst
 	url := fmt.Sprintf("%s/route", r.baseURL)
 	
 	// Valhallaのリクエスト形式に変換
+	// 中継地点がある場合は、全ての地点を順序通りにlocationsに配置
+	var locations []input.Location
+	if len(request.Waypoints) > 0 {
+		// 出発地点 → 中継地点1 → 中継地点2 → ... → 目的地の順番で配置
+		locations = append(locations, request.Locations[0]) // 出発地点
+		locations = append(locations, request.Waypoints...)  // 中継地点
+		if len(request.Locations) > 1 {
+			locations = append(locations, request.Locations[1]) // 目的地
+		}
+	} else {
+		// 中継地点がない場合は元のlocationsをそのまま使用
+		locations = request.Locations
+	}
+
 	valhallaRequest := map[string]interface{}{
-		"locations": request.Locations,
+		"locations": locations,
 		"language":  request.Language,
 		"costing":   "pedestrian",
+		"destination_only": true,
+		"max_alternates": 3,
+	}
+
+	// 回避地点がある場合は追加
+	if len(request.ExcludeLocations) > 0 {
+		valhallaRequest["exclude_locations"] = request.ExcludeLocations
 	}
 	
 	requestBody, err := json.Marshal(valhallaRequest)

@@ -206,6 +206,24 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			})
 		}
 
+		// 中継地点を変換
+		var waypoints []input.Location
+		for _, waypoint := range routeRequest.Waypoints {
+			waypoints = append(waypoints, input.Location{
+				Lat: waypoint.Lat,
+				Lon: waypoint.Lon,
+			})
+		}
+
+		// 回避地点を変換
+		var excludeLocations []input.Location
+		for _, exclude := range routeRequest.ExcludeLocations {
+			excludeLocations = append(excludeLocations, input.Location{
+				Lat: exclude.Lat,
+				Lon: exclude.Lon,
+			})
+		}
+
 		// デフォルト値を設定
 		detectionMethod := input.DetectionMethodDistance
 		if routeRequest.DetectionMethod != "" {
@@ -219,6 +237,8 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 		usecaseInput := input.RouteWithObstacles{
 			Locations:         locations,
+			Waypoints:         waypoints,
+			ExcludeLocations:  excludeLocations,
 			Language:          routeRequest.Language,
 			Costing:           routeRequest.Costing,
 			DetectionMethod:   detectionMethod,

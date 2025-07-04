@@ -16,6 +16,8 @@ const (
 
 type RouteWithObstacles struct {
 	Locations           []Location              `json:"locations"`
+	Waypoints           []Location              `json:"waypoints,omitempty"`            // 中継地点
+	ExcludeLocations    []Location              `json:"exclude_locations,omitempty"`    // 回避地点
 	Language            string                  `json:"language,omitempty"`
 	Costing             string                  `json:"costing,omitempty"`
 	DetectionMethod     ObstacleDetectionMethod `json:"detection_method,omitempty"`     // 障害物検出方法

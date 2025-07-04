@@ -2,11 +2,12 @@ package output
 
 // ValhallaRouteResponse は Valhalla APIからのレスポンス構造
 type ValhallaRouteResponse struct {
-	Trip    Trip         `json:"trip"`
-	Admins  []Admin      `json:"admins"`
-	Units   string       `json:"units"`
-	Language string      `json:"language"`
-	Obstacles []Obstacle `json:"obstacles,omitempty"` // 追加: ルート上の障害物
+	Trip      Trip         `json:"trip,omitempty"`      // 単一ルートの場合
+	Alternates []Trip      `json:"alternates,omitempty"` // 複数ルートの場合
+	Admins    []Admin      `json:"admins"`
+	Units     string       `json:"units"`
+	Language  string       `json:"language"`
+	Obstacles []Obstacle   `json:"obstacles,omitempty"` // 追加: ルート上の障害物
 }
 
 type Trip struct {

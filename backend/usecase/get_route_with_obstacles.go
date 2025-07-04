@@ -21,36 +21,17 @@ func GetRouteWithObstacles(ctx context.Context, request input.RouteWithObstacles
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to get route from Valhalla: %w", err)
 	}
 
-	// 2. polylineデコード（最初のlegのみ）
-	var shapePoints []valhalla.TraceAttributesRequestShapePoint
-	if len(routeResponse.Trip.Legs) > 0 && routeResponse.Trip.Legs[0].Shape != "" {
-		decoded := decodePolyline(routeResponse.Trip.Legs[0].Shape, 6)
-		for _, pt := range decoded {
-			shapePoints = append(shapePoints, valhalla.TraceAttributesRequestShapePoint{Lat: pt[0], Lon: pt[1]})
-		}
+	// 2. 複数ルートまたは単一ルートの処理
+	var allTrips []output.Trip
+	if len(routeResponse.Alternates) > 0 {
+		// 複数ルートの場合
+		allTrips = routeResponse.Alternates
+	} else if routeResponse.Trip.Legs != nil {
+		// 単一ルートの場合
+		allTrips = []output.Trip{routeResponse.Trip}
 	}
 
-	// 3. /trace_attributesでway_idリスト取得
-	traceReq := valhalla.TraceAttributesRequest{
-		Shape:      shapePoints,
-		Costing:    "pedestrian",
-		ShapeMatch: "map_snap",
-		Filters: &valhalla.TraceAttributesFilters{
-			Attributes: []string{"edge.way_id", "edge.length", "edge.speed"},
-		},
-	}
-	traceResp, err := valhallaRepo.GetTraceAttributes(ctx, traceReq)
-	if err != nil {
-		return nil, http.StatusInternalServerError, fmt.Errorf("failed to get trace_attributes from Valhalla: %w", err)
-	}
-	var routeWayIds []int64
-	for _, edge := range traceResp.Edges {
-		routeWayIds = append(routeWayIds, edge.WayID)
-	}
-	// ここでCloudWatchログに出力
-	fmt.Println("[routeWayIds]", routeWayIds)
-
-	// 4. DBから障害物取得
+	// 3. DBから障害物取得（全ルート共通）
 	obstacleRepo, err := db.NewObstacleRepo(ctx)
 	if err != nil {
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to create obstacle repo: %w", err)
@@ -60,17 +41,63 @@ func GetRouteWithObstacles(ctx context.Context, request input.RouteWithObstacles
 		return nil, statusCode, fmt.Errorf("failed to get obstacles: %w", err)
 	}
 
-	// 5. ルート上の障害物を判定（way_id+距離の組み合わせ）
+	// 4. 距離閾値の設定
 	var distanceThreshold float64
 	if request.DistanceThreshold == 0 {
 		distanceThreshold = 0.04 // 40m in kilometers
 	} else {
 		distanceThreshold = request.DistanceThreshold
 	}
-	routeObstacles := findObstaclesOnRouteWithWayIds(routeResponse, *obstacles, routeWayIds, input.DetectionMethodBoth, distanceThreshold)
 
-	// 6. 障害物情報をレスポンスに追加
-	routeResponse.Obstacles = convertObstaclesToOutput(routeObstacles)
+	// 5. 各ルートに対して障害物検出を実行
+	var allObstacles []output.Obstacle
+	for tripIndex, trip := range allTrips {
+		fmt.Printf("Processing route %d\n", tripIndex+1)
+		
+		// polylineデコード（最初のlegのみ）
+		var shapePoints []valhalla.TraceAttributesRequestShapePoint
+		if len(trip.Legs) > 0 && trip.Legs[0].Shape != "" {
+			decoded := decodePolyline(trip.Legs[0].Shape, 6)
+			for _, pt := range decoded {
+				shapePoints = append(shapePoints, valhalla.TraceAttributesRequestShapePoint{Lat: pt[0], Lon: pt[1]})
+			}
+		}
+
+		// /trace_attributesでway_idリスト取得
+		traceReq := valhalla.TraceAttributesRequest{
+			Shape:      shapePoints,
+			Costing:    "pedestrian",
+			ShapeMatch: "map_snap",
+			Filters: &valhalla.TraceAttributesFilters{
+				Attributes: []string{"edge.way_id", "edge.length", "edge.speed"},
+			},
+		}
+		traceResp, err := valhallaRepo.GetTraceAttributes(ctx, traceReq)
+		if err != nil {
+			fmt.Printf("Warning: failed to get trace_attributes for route %d: %v\n", tripIndex+1, err)
+			continue // このルートはスキップして次へ
+		}
+		
+		var routeWayIds []int64
+		for _, edge := range traceResp.Edges {
+			routeWayIds = append(routeWayIds, edge.WayID)
+		}
+		fmt.Printf("Route %d wayIds: %v\n", tripIndex+1, routeWayIds)
+
+		// このルート上の障害物を判定
+		routeObstacles := findObstaclesOnRouteWithWayIds(&output.ValhallaRouteResponse{Trip: trip}, *obstacles, routeWayIds, input.DetectionMethodBoth, distanceThreshold)
+		
+		// 障害物があれば全体リストに追加（重複排除は後で行う）
+		if len(routeObstacles) > 0 {
+			allObstacles = append(allObstacles, convertObstaclesToOutput(routeObstacles)...)
+		}
+	}
+
+	// 6. 重複する障害物を排除
+	uniqueObstacles := removeDuplicateObstacles(allObstacles)
+	
+	// 7. 障害物情報をレスポンスに追加
+	routeResponse.Obstacles = uniqueObstacles
 
 	return routeResponse, http.StatusOK, nil
 }
@@ -324,4 +351,19 @@ func convertObstaclesToOutput(obstacles []db.Obstacle) []output.Obstacle {
 		result = append(result, adaptor.FromDBObstacle(&obs))
 	}
 	return result
+}
+
+// removeDuplicateObstacles は重複する障害物を排除する
+func removeDuplicateObstacles(obstacles []output.Obstacle) []output.Obstacle {
+	seen := make(map[int]bool)
+	var unique []output.Obstacle
+	
+	for _, obstacle := range obstacles {
+		if !seen[obstacle.ID] {
+			seen[obstacle.ID] = true
+			unique = append(unique, obstacle)
+		}
+	}
+	
+	return unique
 } 

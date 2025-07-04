@@ -767,6 +767,32 @@ components:
               - lat
               - lon
           minItems: 2
+        waypoints:
+          type: array
+          items:
+            type: object
+            properties:
+              lat:
+                type: number
+              lon:
+                type: number
+            required:
+              - lat
+              - lon
+          description: "中継地点のリスト"
+        exclude_locations:
+          type: array
+          items:
+            type: object
+            properties:
+              lat:
+                type: number
+              lon:
+                type: number
+            required:
+              - lat
+              - lon
+          description: "回避地点のリスト"
         language:
           type: string
           default: "ja-JP"
