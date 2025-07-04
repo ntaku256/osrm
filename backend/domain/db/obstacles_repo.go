@@ -82,7 +82,7 @@ func (r *ObstacleRepo) CreateOrUpdate(ctx context.Context, obstacle *Obstacle) (
 	update.Set(expression.Name("way_id"), expression.Value(obstacle.WayID))
 	// 一時的にコメントアウト
 	// update.Set(expression.Name("nearest_distance"), expression.Value(obstacle.NearestDistance))
-	// update.Set(expression.Name("no_nearby_road"), expression.Value(obstacle.NoNearbyRoad))
+	update.Set(expression.Name("no_nearby_road"), expression.Value(obstacle.NoNearbyRoad))
 	update.Set(expression.Name("image_s3_key"), expression.Value(obstacle.ImageS3Key))
 	update.Set(expression.Name("created_at"), expression.Value(obstacle.CreatedAt))
 
