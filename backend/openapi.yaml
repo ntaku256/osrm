@@ -816,26 +816,14 @@ components:
       type: object
       properties:
         trip:
-          type: object
-          properties:
-            locations:
-              type: array
-              items:
-                type: object
-            legs:
-              type: array
-              items:
-                type: object
-            summary:
-              type: object
-            status_message:
-              type: string
-            status:
-              type: integer
-            units:
-              type: string
-            language:
-              type: string
+          $ref: "#/components/schemas/Trip"
+        alternates:
+          type: array
+          items:
+            type: object
+            properties:
+              trip:
+                $ref: "#/components/schemas/Trip"
         admins:
           type: array
           items:
@@ -844,10 +832,30 @@ components:
           type: string
         language:
           type: string
+    Trip:
+      type: object
+      properties:
+        locations:
+          type: array
+          items:
+            type: object
+        legs:
+          type: array
+          items:
+            type: object
+        summary:
+          type: object
+        status_message:
+          type: string
+        status:
+          type: integer
+        units:
+          type: string
+        language:
+          type: string
         obstacles:
           type: array
           items:
             $ref: "#/components/schemas/Obstacle"
-          description: "Obstacles found along the route"
     Empty:
       type: object

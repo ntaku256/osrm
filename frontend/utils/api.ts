@@ -167,7 +167,7 @@ export const routeApi = {
         detection_method: request.detection_method || 'distance',
         alternates: {
           destination_only: request.alternates?.destination_only || false,
-          max_alternates: request.alternates?.max_alternates || 3,
+          alternates: request.alternates?.alternates || 3,
         },
         distance_threshold: request.distance_threshold || 0.5,
         ...(request.waypoints && request.waypoints.length > 0 && { waypoints: request.waypoints }),

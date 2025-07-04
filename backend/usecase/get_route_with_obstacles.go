@@ -23,12 +23,15 @@ func GetRouteWithObstacles(ctx context.Context, request input.RouteWithObstacles
 
 	// 2. 複数ルートまたは単一ルートの処理
 	var allTrips []output.Trip
+	if routeResponse.Trip.Legs != nil {
+		// まずメインルートを追加
+		allTrips = append(allTrips, routeResponse.Trip)
+	}
 	if len(routeResponse.Alternates) > 0 {
-		// 複数ルートの場合
-		allTrips = routeResponse.Alternates
-	} else if routeResponse.Trip.Legs != nil {
-		// 単一ルートの場合
-		allTrips = []output.Trip{routeResponse.Trip}
+		// 代替ルートも追加
+		for _, alt := range routeResponse.Alternates {
+			allTrips = append(allTrips, alt.Trip)
+		}
 	}
 
 	// 3. DBから障害物取得（全ルート共通）
@@ -50,7 +53,6 @@ func GetRouteWithObstacles(ctx context.Context, request input.RouteWithObstacles
 	}
 
 	// 5. 各ルートに対して障害物検出を実行
-	var allObstacles []output.Obstacle
 	for tripIndex, trip := range allTrips {
 		fmt.Printf("Processing route %d\n", tripIndex+1)
 		
@@ -86,18 +88,17 @@ func GetRouteWithObstacles(ctx context.Context, request input.RouteWithObstacles
 
 		// このルート上の障害物を判定
 		routeObstacles := findObstaclesOnRouteWithWayIds(&output.ValhallaRouteResponse{Trip: trip}, *obstacles, routeWayIds, input.DetectionMethodBoth, distanceThreshold)
-		
-		// 障害物があれば全体リストに追加（重複排除は後で行う）
-		if len(routeObstacles) > 0 {
-			allObstacles = append(allObstacles, convertObstaclesToOutput(routeObstacles)...)
+		convertedObstacles := convertObstaclesToOutput(routeObstacles)
+
+		// Trip構造体に障害物を格納
+		if tripIndex == 0 {
+			// 1つ目はメインルート
+			routeResponse.Trip.Obstacles = convertedObstacles
+		} else {
+			// 2つ目以降はAlternates
+			routeResponse.Alternates[tripIndex-1].Trip.Obstacles = convertedObstacles
 		}
 	}
-
-	// 6. 重複する障害物を排除
-	uniqueObstacles := removeDuplicateObstacles(allObstacles)
-	
-	// 7. 障害物情報をレスポンスに追加
-	routeResponse.Obstacles = uniqueObstacles
 
 	return routeResponse, http.StatusOK, nil
 }

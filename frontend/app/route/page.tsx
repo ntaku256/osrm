@@ -294,7 +294,7 @@ export default function RoutePage() {
         distance_threshold: distanceThreshold,
         alternates: {
           destination_only: true,
-          max_alternates: 3,
+          alternates: 3,
         },
       })
 
@@ -388,6 +388,57 @@ export default function RoutePage() {
     setStartInput(`${sampleStart[0]}, ${sampleStart[1]}`)
     setEndInput(`${sampleEnd[0]}, ${sampleEnd[1]}`)
   }
+
+  // ルートごとのtrip取得ヘルパー
+  const getCurrentTrip = () => {
+    if (!routeData) return null;
+    if (selectedRouteIndex === 0) {
+      return routeData.trip || null;
+    }
+    if (
+      routeData.alternates &&
+      routeData.alternates.length > selectedRouteIndex - 1
+    ) {
+      return routeData.alternates[selectedRouteIndex - 1]?.trip || null;
+    }
+    return null;
+  };
+
+  // 障害物リスト取得
+  const getCurrentTripObstacles = () => {
+    const trip = getCurrentTrip();
+    return trip?.obstacles || [];
+  };
+
+  // ルート選択UI用: ルート数・ラベル・summary参照
+  const getRouteCount = () => {
+    if (!routeData) return 0;
+    if (routeData.alternates && routeData.alternates.length > 0) {
+      return 1 + routeData.alternates.length;
+    }
+    return 1;
+  };
+
+  const getRouteSummary = (index: number) => {
+    if (!routeData) return null;
+    if (index === 0) {
+      return routeData.trip?.summary || null;
+    }
+    if (
+      routeData.alternates &&
+      routeData.alternates.length > index - 1
+    ) {
+      return routeData.alternates[index - 1]?.trip?.summary || null;
+    }
+    return null;
+  };
+
+  // ルートデータやルート数が変わったときにselectedRouteIndexをリセット
+  useEffect(() => {
+    if (selectedRouteIndex >= getRouteCount()) {
+      setSelectedRouteIndex(0);
+    }
+  }, [routeData]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -751,18 +802,18 @@ export default function RoutePage() {
             </Card>
 
             {/* 複数ルート選択 */}
-            {routeData && routeData.alternates && routeData.alternates.length > 0 && (
+            {routeData && getRouteCount() > 1 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     🛣️ ルート選択
                   </CardTitle>
                   <CardDescription>
-                    {routeData.alternates.length}つのルートが見つかりました
+                    {getRouteCount()}つのルートが見つかりました
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {routeData.alternates.map((route, index) => (
+                  {[...Array(getRouteCount())].map((_, index) => (
                     <div
                       key={index}
                       className={`p-3 rounded-lg border cursor-pointer transition-all ${
@@ -789,10 +840,10 @@ export default function RoutePage() {
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-xs text-gray-600 mt-2">
                         <div>
-                          <span className="font-medium">距離:</span> {route.summary.length.toFixed(1)}km
+                          <span className="font-medium">距離:</span> {getRouteSummary(index)?.length?.toFixed(1)}km
                         </div>
                         <div>
-                          <span className="font-medium">時間:</span> {Math.round(route.summary.time / 60)}分
+                          <span className="font-medium">時間:</span> {Math.round((getRouteSummary(index)?.time || 0) / 60)}分
                         </div>
                       </div>
                     </div>
@@ -813,10 +864,8 @@ export default function RoutePage() {
                       <p className="text-gray-600">距離</p>
                       <p className="font-semibold">
                         {(() => {
-                          if (routeData.alternates && routeData.alternates.length > 0) {
-                            return routeData.alternates[selectedRouteIndex]?.summary?.length?.toFixed(1)
-                          }
-                          return routeData.trip?.summary?.length?.toFixed(1)
+                          const summary = getRouteSummary(selectedRouteIndex);
+                          return summary?.length?.toFixed(1);
                         })()}km
                       </p>
                     </div>
@@ -824,22 +873,20 @@ export default function RoutePage() {
                       <p className="text-gray-600">時間</p>
                       <p className="font-semibold">
                         {(() => {
-                          const time = routeData.alternates && routeData.alternates.length > 0
-                            ? routeData.alternates[selectedRouteIndex]?.summary?.time || 0
-                            : routeData.trip?.summary?.time || 0
-                          return Math.round(time / 60)
+                          const summary = getRouteSummary(selectedRouteIndex);
+                          return Math.round((summary?.time || 0) / 60);
                         })()}分
                       </p>
                     </div>
                   </div>
 
-                  {routeData.obstacles && routeData.obstacles.length > 0 && (
+                  {getCurrentTripObstacles().length > 0 && (
                     <div className="border-t pt-3">
                       <p className="text-red-600 font-medium mb-2">
-                        ⚠️ 障害物 {routeData.obstacles.length}個検出
+                        ⚠️ 障害物 {getCurrentTripObstacles().length}個検出
                       </p>
                       <div className="space-y-2 max-h-40 overflow-y-auto">
-                        {routeData.obstacles.map((obstacle, index) => (
+                        {getCurrentTripObstacles().map((obstacle, index) => (
                           <div 
                             key={index} 
                             className={`text-xs p-2 rounded cursor-pointer transition-all ${

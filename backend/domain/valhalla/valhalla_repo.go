@@ -54,7 +54,7 @@ func (r *valhallaRepo) GetRoute(ctx context.Context, request input.RouteWithObst
 		"language":  request.Language,
 		"costing":   "pedestrian",
 		"destination_only": true,
-		"max_alternates": 3,
+		"alternates": 3,
 	}
 
 	// 回避地点がある場合は追加

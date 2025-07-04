@@ -15,7 +15,7 @@ export interface RouteWithObstaclesRequest {
   distance_threshold?: number;
   alternates?: {
     destination_only?: boolean;
-    max_alternates?: number;
+    alternates?: number;
   };
 }
 
@@ -76,20 +76,6 @@ export interface RouteTrip {
   status: number;
   units: string;
   language: string;
-}
-
-export interface RouteAdmin {
-  admin_level: number;
-  iso_3166_1_alpha3: string;
-  iso_3166_1: string;
-}
-
-export interface RouteResponse {
-  trip?: RouteTrip;       // 単一ルートの場合
-  alternates?: RouteTrip[]; // 複数ルートの場合
-  admins: RouteAdmin[];
-  units: string;
-  language: string;
   obstacles?: Array<{
     id: number;
     position: [number, number];
@@ -99,4 +85,22 @@ export interface RouteResponse {
     image_s3_key?: string;
     createdAt: string;
   }>;
+}
+
+export interface RouteAdmin {
+  admin_level: number;
+  iso_3166_1_alpha3: string;
+  iso_3166_1: string;
+}
+
+export interface RouteAlternate {
+  trip: RouteTrip;
+}
+
+export interface RouteResponse {
+  trip?: RouteTrip;       // 単一ルートの場合
+  alternates?: RouteAlternate[]; // 複数ルートの場合
+  admins: RouteAdmin[];
+  units: string;
+  language: string;
 } 
