@@ -35,6 +35,9 @@ func GetRouteWithObstacles(ctx context.Context, request input.RouteWithObstacles
 		Shape:      shapePoints,
 		Costing:    "pedestrian",
 		ShapeMatch: "map_snap",
+		Filters: &valhalla.TraceAttributesFilters{
+			Attributes: []string{"edge.way_id", "edge.length", "edge.speed"},
+		},
 	}
 	traceResp, err := valhallaRepo.GetTraceAttributes(ctx, traceReq)
 	if err != nil {
@@ -57,8 +60,14 @@ func GetRouteWithObstacles(ctx context.Context, request input.RouteWithObstacles
 		return nil, statusCode, fmt.Errorf("failed to get obstacles: %w", err)
 	}
 
-	// 5. ルート上の障害物を判定（way_id一致のみ）
-	routeObstacles := findObstaclesOnRouteByWayID(*obstacles, routeWayIds)
+	// 5. ルート上の障害物を判定（way_id+距離の組み合わせ）
+	var distanceThreshold float64
+	if request.DistanceThreshold == 0 {
+		distanceThreshold = 0.04 // 40m in kilometers
+	} else {
+		distanceThreshold = request.DistanceThreshold
+	}
+	routeObstacles := findObstaclesOnRouteWithWayIds(routeResponse, *obstacles, routeWayIds, input.DetectionMethodBoth, distanceThreshold)
 
 	// 6. 障害物情報をレスポンスに追加
 	routeResponse.Obstacles = convertObstaclesToOutput(routeObstacles)
@@ -66,78 +75,27 @@ func GetRouteWithObstacles(ctx context.Context, request input.RouteWithObstacles
 	return routeResponse, http.StatusOK, nil
 }
 
-// ルート上のway_idリストと障害物nodesを突合
-func findObstaclesOnRouteByWayID(obstacles []db.Obstacle, routeWayIds []int64) []db.Obstacle {
-	var result []db.Obstacle
-	for _, obs := range obstacles {
-		for _, node := range obs.Nodes {
-			for _, wayID := range routeWayIds {
-				if node == wayID {
-					result = append(result, obs)
-					break
-				}
-			}
-		}
-	}
-	return result
-}
-
-// findObstaclesOnRoute はルート上にある障害物を検出する
-func findObstaclesOnRoute(routeResponse *output.ValhallaRouteResponse, obstacles []db.Obstacle, detectionMethod input.ObstacleDetectionMethod, distanceThreshold float64) []db.Obstacle {
+// findObstaclesOnRouteWithWayIds はルート上にある障害物を検出する（way_idリストを引数として受け取る版）
+func findObstaclesOnRouteWithWayIds(routeResponse *output.ValhallaRouteResponse, obstacles []db.Obstacle, routeWayIds []int64, detectionMethod input.ObstacleDetectionMethod, distanceThreshold float64) []db.Obstacle {
 	var routeObstacles []db.Obstacle
 	
-	// ルートのway_idを取得
-	var routeWayIds []int64
-	for _, location := range routeResponse.Trip.Locations {
-		if location.WayId != 0 {
-			routeWayIds = append(routeWayIds, location.WayId)
-		}
-	}
-	
-	// 検出方法に応じて障害物をフィルタリング
 	for _, obstacle := range obstacles {
-		switch detectionMethod {
-		case input.DetectionMethodNodes:
-			// nodes一致のみで判定
-			if isObstacleOnRouteByNodes(obstacle, routeWayIds) {
-				routeObstacles = append(routeObstacles, obstacle)
-			}
-		case input.DetectionMethodDistance:
-			// 距離判定のみ
-			if isObstacleNearRouteByDistance(obstacle, routeResponse, distanceThreshold) {
-				routeObstacles = append(routeObstacles, obstacle)
-			}
-		case input.DetectionMethodBoth:
-			// 両方の条件をチェック
-			nodeMatch := isObstacleOnRouteByNodes(obstacle, routeWayIds)
-			distanceMatch := isObstacleNearRouteByDistance(obstacle, routeResponse, distanceThreshold)
-			if nodeMatch || distanceMatch {
-				routeObstacles = append(routeObstacles, obstacle)
-			}
-		default:
-			// デフォルトは距離判定
-			if isObstacleNearRouteByDistance(obstacle, routeResponse, distanceThreshold) {
-				routeObstacles = append(routeObstacles, obstacle)
-			}
+		wayIdMatch := isObstacleOnRouteByWayId(obstacle, routeWayIds)
+		distanceMatch := isObstacleNearRouteByDistance(obstacle, routeResponse, distanceThreshold)
+		if wayIdMatch && distanceMatch {
+			routeObstacles = append(routeObstacles, obstacle)
 		}
 	}
 	
 	return routeObstacles
 }
 
-// isObstacleOnRouteByNodes は障害物のnodesがルートのway_idと一致するかチェック
-func isObstacleOnRouteByNodes(obstacle db.Obstacle, routeWayIds []int64) bool {
-	// 障害物にnodesが設定されていない場合はfalse
-	if len(obstacle.Nodes) == 0 {
-		return false
-	}
-	
-	// 障害物のnodesとルートのway_idに共通するものがあるかチェック
-	for _, obstacleNode := range obstacle.Nodes {
-		for _, routeWayId := range routeWayIds {
-			if obstacleNode == routeWayId {
-				return true
-			}
+// isObstacleOnRouteByWayId は障害物のWayIDがルートのway_idと一致するかチェック
+func isObstacleOnRouteByWayId(obstacle db.Obstacle, routeWayIds []int64) bool {
+	// 障害物のWayIDとルートのway_idに共通するものがあるかチェック
+	for _, routeWayId := range routeWayIds {
+		if obstacle.WayID == routeWayId {
+			return true
 		}
 	}
 	

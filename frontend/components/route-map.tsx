@@ -25,6 +25,9 @@ interface RouteMapProps {
   endPosition: [number, number] | null
   onMapClick: (position: [number, number], mode: 'start' | 'end') => void
   clickMode?: 'start' | 'end' | null
+  currentPosition?: [number, number] | null
+  trackPoints?: [number, number][]
+  isRecording?: boolean
 }
 
 export default function RouteMap({
@@ -34,12 +37,17 @@ export default function RouteMap({
   endPosition,
   onMapClick,
   clickMode,
+  currentPosition,
+  trackPoints = [],
+  isRecording = false,
 }: RouteMapProps) {
   const mapRef = useRef(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const routeLayerRef = useRef(null)
   const markersLayerRef = useRef(null)
   const obstacleMarkersRef = useRef(null)
+  const trackLayerRef = useRef(null)
+  const currentPositionMarkerRef = useRef(null)
   const [mapReady, setMapReady] = useState(false)
   const [mapCenter] = useState<[number, number]>([33.881292, 135.157809])
   const [mapZoom] = useState<number>(14)
@@ -75,6 +83,8 @@ export default function RouteMap({
         routeLayerRef.current = L.layerGroup().addTo(map)
         markersLayerRef.current = L.layerGroup().addTo(map)
         obstacleMarkersRef.current = L.layerGroup().addTo(map)
+        trackLayerRef.current = L.layerGroup().addTo(map)
+        currentPositionMarkerRef.current = L.layerGroup().addTo(map)
 
         // 既存のコードと同じ方式でマップクリックを処理
         map.on("click", (e) => {
@@ -82,7 +92,7 @@ export default function RouteMap({
           console.log("Clicked at:", e.latlng.lat, e.latlng.lng)
           console.log("Current clickModeRef:", clickModeRef.current)
           console.log("Props clickMode:", clickMode)
-          
+
           if (clickModeRef.current === 'start' || clickModeRef.current === 'end') {
             console.log("✅ Mode is active - calling onMapClick")
             const { lat, lng } = e.latlng
@@ -107,6 +117,63 @@ export default function RouteMap({
     const timer = setTimeout(initializeMap, 100)
     return () => clearTimeout(timer)
   }, [mapCenter, mapZoom, onMapClick])
+
+  // 現在位置マーカーの更新
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !currentPositionMarkerRef.current) return
+
+    currentPositionMarkerRef.current.clearLayers()
+
+    if (currentPosition) {
+      const currentIcon = L.divIcon({
+        className: "current-position-marker",
+        html: `<div class="relative">
+          <div class="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg"></div>
+          ${isRecording ? '<div class="absolute -inset-1 bg-blue-500 rounded-full animate-ping opacity-75"></div>' : ''}
+        </div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      })
+
+      L.marker(currentPosition, { icon: currentIcon })
+        .addTo(currentPositionMarkerRef.current)
+        .bindPopup(isRecording ? "現在位置（記録中）" : "現在位置")
+        .on('click', (e) => {
+          L.DomEvent.stopPropagation(e)
+        })
+    }
+  }, [mapReady, currentPosition, isRecording])
+
+  // 移動経路の表示
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !trackLayerRef.current) return
+
+    trackLayerRef.current.clearLayers()
+
+    if (trackPoints && trackPoints.length > 1) {
+      // 移動経路のポリライン
+      const trackPolyline = L.polyline(trackPoints, {
+        color: isRecording ? '#3b82f6' : '#6b7280',
+        weight: 4,
+        opacity: 0.8,
+        dashArray: isRecording ? undefined : '5, 5'
+      }).addTo(trackLayerRef.current)
+
+      // 記録中の場合、軌跡の開始点にマーカーを追加
+      if (trackPoints.length > 0) {
+        const startIcon = L.divIcon({
+          className: "track-start-marker",
+          html: `<div class="w-3 h-3 bg-blue-600 rounded-full border border-white shadow"></div>`,
+          iconSize: [12, 12],
+          iconAnchor: [6, 6],
+        })
+
+        L.marker(trackPoints[0], { icon: startIcon })
+          .addTo(trackLayerRef.current)
+          .bindPopup("移動開始地点")
+      }
+    }
+  }, [mapReady, trackPoints, isRecording])
 
   // Start/End マーカーの更新
   useEffect(() => {
@@ -168,56 +235,56 @@ export default function RouteMap({
       // ルートの描画
       if (routeData.trip && routeData.trip.legs) {
         routeData.trip.legs.forEach((leg) => {
-                     if (leg.shape) {
-             // 両方の精度でテストデコード
-             const testResults = testDecodeWithBothPrecisions(leg.shape)
-             console.log("Testing precision 5:", testResults.precision5.slice(0, 3))
-             console.log("Testing precision 6:", testResults.precision6.slice(0, 3))
-             
-             // Valhalla用精度6でデコード
-             const coordinates = decodePolyline(leg.shape, 6)
-             
-             console.log("Route coordinates bounds:", {
-               minLat: Math.min(...coordinates.map(c => c[0])),
-               maxLat: Math.max(...coordinates.map(c => c[0])),
-               minLng: Math.min(...coordinates.map(c => c[1])),
-               maxLng: Math.max(...coordinates.map(c => c[1]))
-             })
-             
-             // 座標が日本の範囲内かチェック
-             const isInJapanRange = coordinates.every(([lat, lng]) => 
-               lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
-             )
-             console.log("Coordinates in Japan range:", isInJapanRange)
-             
-             // もし精度6で範囲外なら精度5を試す
-             if (!isInJapanRange && coordinates.length > 0) {
-               console.log("Trying precision 5 instead...")
-               const coordinatesPrecision5 = decodePolyline(leg.shape, 5)
-               const isInJapanRangeP5 = coordinatesPrecision5.every(([lat, lng]) => 
-                 lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
-               )
-               console.log("Precision 5 coordinates in Japan range:", isInJapanRangeP5)
-               
-               if (isInJapanRangeP5) {
-                 // 精度5の方が正しい場合はそちらを使用
-                 coordinates.length = 0
-                 coordinates.push(...coordinatesPrecision5)
-               }
-             }
-             
-             // ルートライン
-             const routeLine = L.polyline(coordinates, {
-               color: '#3388ff',
-               weight: 6,
-               opacity: 0.8,
-             }).addTo(routeLayerRef.current)
-             .on('click', (e) => {
-               L.DomEvent.stopPropagation(e)
-             })
+          if (leg.shape) {
+            // 両方の精度でテストデコード
+            const testResults = testDecodeWithBothPrecisions(leg.shape)
+            console.log("Testing precision 5:", testResults.precision5.slice(0, 3))
+            console.log("Testing precision 6:", testResults.precision6.slice(0, 3))
 
-             // ルートの境界にマップをフィット
-             mapRef.current.fitBounds(routeLine.getBounds(), { padding: [20, 20] })
+            // Valhalla用精度6でデコード
+            const coordinates = decodePolyline(leg.shape, 6)
+
+            console.log("Route coordinates bounds:", {
+              minLat: Math.min(...coordinates.map(c => c[0])),
+              maxLat: Math.max(...coordinates.map(c => c[0])),
+              minLng: Math.min(...coordinates.map(c => c[1])),
+              maxLng: Math.max(...coordinates.map(c => c[1]))
+            })
+
+            // 座標が日本の範囲内かチェック
+            const isInJapanRange = coordinates.every(([lat, lng]) =>
+              lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
+            )
+            console.log("Coordinates in Japan range:", isInJapanRange)
+
+            // もし精度6で範囲外なら精度5を試す
+            if (!isInJapanRange && coordinates.length > 0) {
+              console.log("Trying precision 5 instead...")
+              const coordinatesPrecision5 = decodePolyline(leg.shape, 5)
+              const isInJapanRangeP5 = coordinatesPrecision5.every(([lat, lng]) =>
+                lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
+              )
+              console.log("Precision 5 coordinates in Japan range:", isInJapanRangeP5)
+
+              if (isInJapanRangeP5) {
+                // 精度5の方が正しい場合はそちらを使用
+                coordinates.length = 0
+                coordinates.push(...coordinatesPrecision5)
+              }
+            }
+
+            // ルートライン
+            const routeLine = L.polyline(coordinates, {
+              color: '#3388ff',
+              weight: 6,
+              opacity: 0.8,
+            }).addTo(routeLayerRef.current)
+              .on('click', (e) => {
+                L.DomEvent.stopPropagation(e)
+              })
+
+            // ルートの境界にマップをフィット
+            mapRef.current.fitBounds(routeLine.getBounds(), { padding: [20, 20] })
           }
         })
       }
@@ -234,14 +301,14 @@ export default function RouteMap({
             iconAnchor: [16, 16],
           })
 
-                     const marker = L.marker(obstacle.position, { icon: obstacleIcon })
-             .addTo(obstacleMarkersRef.current)
-             .on('click', (e) => {
-               L.DomEvent.stopPropagation(e)
-             })
+          const marker = L.marker(obstacle.position, { icon: obstacleIcon })
+            .addTo(obstacleMarkersRef.current)
+            .on('click', (e) => {
+              L.DomEvent.stopPropagation(e)
+            })
 
-           // ポップアップの作成
-           const popupContent = `
+          // ポップアップの作成
+          const popupContent = `
              <div class="p-2">
                <h3 class="font-bold text-sm mb-1">${getObstacleTypeName(obstacle.type)}</h3>
                <p class="text-xs text-gray-600 mb-1">${obstacle.description}</p>
@@ -252,7 +319,7 @@ export default function RouteMap({
                </div>
              </div>
            `
-           marker.bindPopup(popupContent)
+          marker.bindPopup(popupContent)
         })
       }
 
@@ -289,7 +356,7 @@ export default function RouteMap({
         className="w-full h-full rounded-lg overflow-hidden"
         style={{ minHeight: '600px' }}
       />
-      
+
       {/* Leaflet読み込み中 */}
       {!mapReady && (
         <div className="absolute inset-0 bg-gray-100 flex items-center justify-center rounded-lg">
@@ -317,7 +384,7 @@ export default function RouteMap({
           <div className="text-xs mt-1">地図をクリックしてください</div>
         </div>
       )}
-      
+
       {/* デバッグ情報 */}
       {process.env.NODE_ENV === 'development' && (
         <div className="absolute bottom-4 left-4 bg-black text-white px-2 py-1 rounded text-xs z-[1000]">

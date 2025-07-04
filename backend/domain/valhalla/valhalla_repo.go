@@ -83,12 +83,20 @@ type TraceAttributesRequest struct {
 	Shape      []TraceAttributesRequestShapePoint `json:"shape"`
 	Costing    string `json:"costing"`
 	ShapeMatch string `json:"shape_match"`
+	Filters    *TraceAttributesFilters `json:"filters,omitempty"`
+}
+
+type TraceAttributesFilters struct {
+	Attributes []string `json:"attributes"`
 }
 
 type TraceAttributesResponse struct {
 	Edges []struct {
-		WayID int64 `json:"way_id"`
+		WayID  int64   `json:"way_id"`
+		Length float64 `json:"length,omitempty"`
+		Speed  float64 `json:"speed,omitempty"`
 	} `json:"edges"`
+	Shape string `json:"shape,omitempty"`
 	// 必要に応じて他のフィールドも追加
 }
 
