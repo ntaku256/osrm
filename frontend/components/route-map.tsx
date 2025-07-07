@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css"
 import { RouteResponse } from "@/types/route"
 import { DangerLevel, ObstacleType } from "@/types/obstacle"
 import { decodePolyline, testDecodeWithBothPrecisions } from "@/utils/polyline"
+import React from "react"
 
 // Fix Leaflet icon issues
 const fixLeafletIcon = () => {
@@ -72,7 +73,7 @@ export default function RouteMap({
   const currentPositionMarkerRef = useRef(null)
   const [mapReady, setMapReady] = useState(false)
   const [mapCenter] = useState<[number, number]>([33.881292, 135.157809])
-  const [mapZoom] = useState<number>(14)
+  const [zoom, setZoom] = useState(14)
 
   // clickModeの最新値を参照するためのref
   const clickModeRef = useRef(clickMode)
@@ -92,8 +93,9 @@ export default function RouteMap({
       try {
         const map = L.map(mapContainerRef.current, {
           center: mapCenter,
-          zoom: mapZoom,
+          zoom: zoom,
           zoomControl: false,
+          scrollWheelZoom: false,
         })
 
         L.control.zoom({ position: "topright" }).addTo(map)
@@ -139,7 +141,7 @@ export default function RouteMap({
 
     const timer = setTimeout(initializeMap, 100)
     return () => clearTimeout(timer)
-  }, [mapCenter, mapZoom, onMapClick])
+  }, [mapCenter, zoom, onMapClick])
 
   // 現在位置マーカーの更新
   useEffect(() => {
@@ -358,6 +360,7 @@ export default function RouteMap({
       if (allRouteBounds.length > 0) {
         const bounds = L.latLngBounds(allRouteBounds)
         mapRef.current.fitBounds(bounds, { padding: [20, 20] })
+        setZoom(mapRef.current.getZoom())
       }
       // 障害物マーカーの表示（選択中ルートのみ）
       const selectedTrip = allTrips[selectedRouteIndex];
@@ -431,6 +434,23 @@ export default function RouteMap({
     }
   }, [mapReady, routeData, selectedObstacle, selectedRouteIndex])
 
+  // ズームバーで地図のズームを変更
+  useEffect(() => {
+    if (mapRef.current) {
+      mapRef.current.setZoom(zoom);
+    }
+  }, [zoom]);
+
+  // 地図のズーム変更時にズームバーも同期
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const onZoom = () => setZoom(mapRef.current.getZoom());
+    mapRef.current.on("zoomend", onZoom);
+    return () => {
+      mapRef.current && mapRef.current.off("zoomend", onZoom);
+    };
+  }, [mapReady]);
+
   // クリーンアップ
   useEffect(() => {
     return () => {
@@ -447,7 +467,7 @@ export default function RouteMap({
     <div className="relative w-full h-full">
       <div
         ref={mapContainerRef}
-        className="w-full h-full rounded-lg overflow-hidden"
+        className="w-full h-full rounded-lg overflow-hidden bg-gray-100 z-0"
         style={{ minHeight: '800px' }}
       />
 
@@ -497,6 +517,21 @@ export default function RouteMap({
           </div>
         </div>
       )}
+
+      <div className="flex items-center gap-2 mt-2 absolute left-1/2 -translate-x-1/2 bottom-4 z-0 bg-white bg-opacity-80 rounded px-3 py-2 shadow">
+        <span className="text-black">ズーム</span>
+        <input
+          type="range"
+          min={5}
+          max={18}
+          value={zoom}
+          onChange={e => setZoom(Number(e.target.value))}
+          onWheel={e => { e.preventDefault(); }}
+          className="w-48 text-black"
+          style={{ touchAction: "none" }}
+        />
+        <span className="text-black">{zoom}</span>
+      </div>
     </div>
   )
 }

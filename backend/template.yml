@@ -16,6 +16,7 @@ Globals:
         OBSTACLE_TABLE_NAME: !Ref ObstacleTable
         OBSTACLE_IMAGE_BUCKET_NAME: !Ref ObstacleImageBucket
         SHELTER_TABLE_NAME: !Ref ShelterTable
+        USER_TABLE_NAME: !Ref UserTable
   Api:
     OpenApiVersion: 3.0.2
 
@@ -29,8 +30,21 @@ Parameters:
   Architectures:
     Type: String
     Default: arm64
+  FirebaseServiceAccountKey:
+    Type: String
+    Description: "Base64 encoded Firebase service account key JSON"
+    NoEcho: true
 
 Resources:
+  # Parameter Store for Firebase Service Account Key
+  FirebaseServiceAccountKeyParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ENV}/firebase-service-account-key"
+      Type: String
+      Value: !Ref FirebaseServiceAccountKey
+      Description: "Firebase Service Account Key for authentication"
+
   # Role
   ApiRole:
     Type: AWS::IAM::Role
@@ -55,6 +69,7 @@ Resources:
                 Resource:
                   - Fn::Sub: ${ObstacleFunction.Arn}
                   - Fn::Sub: ${ShelterFunction.Arn}
+                  - Fn::Sub: ${UserFunction.Arn}
   FunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -85,12 +100,17 @@ Resources:
                 Resource:
                   - !GetAtt ObstacleTable.Arn
                   - !GetAtt ShelterTable.Arn
+                  - !GetAtt UserTable.Arn
               - Effect: Allow
                 Action:
                   - s3:PutObject
                   - s3:GetObject
                   - s3:DeleteObject
                 Resource: !Sub "arn:aws:s3:::${ENV}-obstacle-image-bucket/*"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ENV}/firebase-service-account-key"
 
   # API Gateway
   Api:
@@ -137,6 +157,20 @@ Resources:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
 
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ENV}-user-table"
+      AttributeDefinitions:
+        - AttributeName: firebase_uid
+          AttributeType: S
+      KeySchema:
+        - AttributeName: firebase_uid
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
   # Lambda
   ObstacleFunction:
     Type: AWS::Serverless::Function
@@ -150,6 +184,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "${ENV}-osrm-ShelterFunction"
+      Role: !GetAtt FunctionRole.Arn
+    Metadata:
+      BuildMethod: makefile
+
+  UserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ENV}-osrm-UserFunction"
       Role: !GetAtt FunctionRole.Arn
     Metadata:
       BuildMethod: makefile
@@ -201,3 +243,9 @@ Outputs:
   ShelterFunction:
     Description: "ShelterFunction ARN"
     Value: !GetAtt ShelterFunction.Arn
+  UserAPI:
+    Description: "API Gateway endpoint URL for User API"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/users"
+  UserFunction:
+    Description: "UserFunction ARN"
+    Value: !GetAtt UserFunction.Arn

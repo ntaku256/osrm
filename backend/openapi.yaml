@@ -3,11 +3,18 @@ info:
   title: Obstacle and Shelter API
   description: API for managing obstacle and shelter data
   version: 1.0.0
+tags:
+  - name: Obstacle
+  - name: Valhalla
+  - name: Shelter
+  - name: User
 
 paths:
   /obstacles:
     get:
       summary: Get all obstacles
+      tags:
+        - Obstacle
       responses:
         "200":
           description: List of obstacles
@@ -31,6 +38,8 @@ paths:
         type: aws_proxy
     post:
       summary: Create an obstacle
+      tags:
+        - Obstacle
       requestBody:
         required: true
         content:
@@ -61,6 +70,8 @@ paths:
   /obstacles/{id}:
     get:
       summary: Get an obstacle by ID
+      tags:
+        - Obstacle
       parameters:
         - in: path
           name: id
@@ -90,6 +101,8 @@ paths:
         type: aws_proxy
     put:
       summary: Update an obstacle
+      tags:
+        - Obstacle
       parameters:
         - in: path
           name: id
@@ -125,6 +138,8 @@ paths:
         type: aws_proxy
     delete:
       summary: Delete an obstacle
+      tags:
+        - Obstacle
       parameters:
         - in: path
           name: id
@@ -155,6 +170,8 @@ paths:
   /obstacles/{id}/image-upload:
     post:
       summary: Generate presigned URL for image upload
+      tags:
+        - Obstacle
       parameters:
         - in: path
           name: id
@@ -198,6 +215,8 @@ paths:
         type: aws_proxy
     options:
       summary: CORS support
+      tags:
+        - Obstacle
       responses:
         "200":
           description: CORS support
@@ -227,6 +246,8 @@ paths:
   /obstacles/{id}/image:
     put:
       summary: Save image_s3_key to obstacle
+      tags:
+        - Obstacle
       parameters:
         - in: path
           name: id
@@ -265,6 +286,8 @@ paths:
         type: aws_proxy
     options:
       summary: CORS support
+      tags:
+        - Obstacle
       responses:
         "200":
           description: CORS support
@@ -294,6 +317,8 @@ paths:
   /route-with-obstacles:
     post:
       summary: Get route from Valhalla with obstacles information
+      tags:
+        - Valhalla
       requestBody:
         required: true
         content:
@@ -323,6 +348,8 @@ paths:
         type: aws_proxy
     options:
       summary: CORS support
+      tags:
+        - Valhalla
       responses:
         "200":
           description: CORS support
@@ -352,6 +379,8 @@ paths:
   /locate:
     post:
       summary: Get nearest road information from Valhalla locate endpoint
+      tags:
+        - Valhalla
       requestBody:
         required: true
         content:
@@ -401,6 +430,8 @@ paths:
         type: aws_proxy
     options:
       summary: CORS support
+      tags:
+        - Valhalla
       responses:
         "200":
           description: CORS support
@@ -430,6 +461,8 @@ paths:
   /trace_attributes:
     post:
       summary: Get trace attributes from Valhalla
+      tags:
+        - Valhalla
       requestBody:
         required: true
         content:
@@ -461,6 +494,8 @@ paths:
         type: aws_proxy
     options:
       summary: CORS support
+      tags:
+        - Valhalla
       responses:
         "200":
           description: CORS support
@@ -490,6 +525,8 @@ paths:
   /trace_route:
     post:
       summary: Get trace route from Valhalla
+      tags:
+        - Valhalla
       requestBody:
         required: true
         content:
@@ -521,6 +558,8 @@ paths:
         type: aws_proxy
     options:
       summary: CORS support
+      tags:
+        - Valhalla
       responses:
         "200":
           description: CORS support
@@ -550,6 +589,8 @@ paths:
   /isochrone:
     post:
       summary: Get isochrone from Valhalla
+      tags:
+        - Valhalla
       requestBody:
         required: true
         content:
@@ -581,6 +622,8 @@ paths:
         type: aws_proxy
     options:
       summary: CORS support
+      tags:
+        - Valhalla
       responses:
         "200":
           description: CORS support
@@ -610,6 +653,8 @@ paths:
   /shelters:
     get:
       summary: Get all shelters
+      tags:
+        - Shelter
       responses:
         "200":
           description: List of shelters
@@ -633,6 +678,8 @@ paths:
         type: aws_proxy
     post:
       summary: Create a shelter
+      tags:
+        - Shelter
       requestBody:
         required: true
         content:
@@ -662,6 +709,8 @@ paths:
         type: aws_proxy
     options:
       summary: CORS support
+      tags:
+        - Shelter
       responses:
         "200":
           description: CORS support
@@ -691,6 +740,8 @@ paths:
   /shelters/{id}:
     get:
       summary: Get a shelter by ID
+      tags:
+        - Shelter
       parameters:
         - in: path
           name: id
@@ -720,6 +771,8 @@ paths:
         type: aws_proxy
     put:
       summary: Update a shelter
+      tags:
+        - Shelter
       parameters:
         - in: path
           name: id
@@ -755,6 +808,8 @@ paths:
         type: aws_proxy
     delete:
       summary: Delete a shelter
+      tags:
+        - Shelter
       parameters:
         - in: path
           name: id
@@ -784,6 +839,186 @@ paths:
         type: aws_proxy
     options:
       summary: CORS support
+      tags:
+        - Shelter
+      responses:
+        "200":
+          description: CORS support
+          headers:
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          "200":
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,PUT,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
+  /users:
+    post:
+      summary: Create/Register a new user
+      tags:
+        - User
+      security:
+        - firebase: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    options:
+      summary: CORS support
+      tags:
+        - User
+      responses:
+        "200":
+          description: CORS support
+          headers:
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          "200":
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST,GET,PUT,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
+  /users/me:
+    get:
+      summary: Get current user profile
+      tags:
+        - User
+      security:
+        - firebase: []
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    put:
+      summary: Update current user profile
+      tags:
+        - User
+      security:
+        - firebase: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    delete:
+      summary: Delete current user
+      tags:
+        - User
+      security:
+        - firebase: []
+      responses:
+        "200":
+          description: User deleted successfully
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    options:
+      summary: CORS support
+      tags:
+        - User
       responses:
         "200":
           description: CORS support
@@ -1161,3 +1396,98 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Shelter"
+    EvacuationLevel:
+      type: integer
+      enum: [1, 2, 3, 4, 5]
+      description: |
+        Enum representing different evacuation ability levels:
+        * 1 - VERY_LOW (要介護レベル)
+        * 2 - LOW (歩行困難)
+        * 3 - MEDIUM (標準的な避難能力)
+        * 4 - HIGH (健康で機敏)
+        * 5 - VERY_HIGH (専門的な避難支援能力あり)
+    User:
+      type: object
+      properties:
+        firebase_uid:
+          type: string
+        username:
+          type: string
+        age:
+          type: integer
+          minimum: 1
+          maximum: 120
+        gender:
+          type: string
+          enum: ["male", "female", "other"]
+        has_disability:
+          type: boolean
+        evacuation_level:
+          $ref: "#/components/schemas/EvacuationLevel"
+        is_firebase_deleted:
+          type: boolean
+          description: "Firebase認証データが削除されているかどうか"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - firebase_uid
+        - username
+        - age
+        - gender
+        - has_disability
+        - evacuation_level
+        - is_firebase_deleted
+        - created_at
+        - updated_at
+    CreateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        age:
+          type: integer
+          minimum: 1
+          maximum: 120
+        gender:
+          type: string
+          enum: ["male", "female", "other"]
+        has_disability:
+          type: boolean
+        evacuation_level:
+          $ref: "#/components/schemas/EvacuationLevel"
+      required:
+        - username
+        - age
+        - gender
+        - evacuation_level
+    UpdateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        age:
+          type: integer
+          minimum: 1
+          maximum: 120
+        gender:
+          type: string
+          enum: ["male", "female", "other"]
+        has_disability:
+          type: boolean
+        evacuation_level:
+          $ref: "#/components/schemas/EvacuationLevel"
+      required:
+        - username
+        - age
+        - gender
+        - evacuation_level
+  securitySchemes:
+    firebase:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase ID Token
