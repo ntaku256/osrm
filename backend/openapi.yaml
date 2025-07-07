@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
-  title: Obstacle API
-  description: API for managing obstacle data
+  title: Obstacle and Shelter API
+  description: API for managing obstacle and shelter data
   version: 1.0.0
 
 paths:
@@ -607,6 +607,209 @@ paths:
               method.response.header.Access-Control-Allow-Origin: "'*'"
             responseTemplates:
               application/json: "{}"
+  /shelters:
+    get:
+      summary: Get all shelters
+      responses:
+        "200":
+          description: List of shelters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListShelterResponse"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ShelterFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    post:
+      summary: Create a shelter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShelterRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shelter"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ShelterFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    options:
+      summary: CORS support
+      responses:
+        "200":
+          description: CORS support
+          headers:
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          "200":
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
+  /shelters/{id}:
+    get:
+      summary: Get a shelter by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Shelter found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shelter"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ShelterFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    put:
+      summary: Update a shelter
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateShelterRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shelter"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ShelterFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    delete:
+      summary: Delete a shelter
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empty"
+        default:
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ShelterFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    options:
+      summary: CORS support
+      responses:
+        "200":
+          description: CORS support
+          headers:
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          "200":
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,PUT,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
 components:
   schemas:
     Error:
@@ -859,3 +1062,102 @@ components:
             $ref: "#/components/schemas/Obstacle"
     Empty:
       type: object
+    TsunamiSafetyLevel:
+      type: integer
+      enum: [1, 2, 3, 4, 5]
+      description: |
+        Enum representing different tsunami safety levels:
+        * 1 - VERY_LOW
+        * 2 - LOW
+        * 3 - MEDIUM
+        * 4 - HIGH
+        * 5 - VERY_HIGH
+    Shelter:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        lat:
+          type: number
+          description: "Latitude"
+        lon:
+          type: number
+          description: "Longitude"
+        address:
+          type: string
+        elevation:
+          type: number
+          description: "Elevation in meters"
+        tsunami_safety_level:
+          $ref: "#/components/schemas/TsunamiSafetyLevel"
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - lat
+        - lon
+        - address
+        - elevation
+        - tsunami_safety_level
+        - created_at
+    CreateShelterRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        lat:
+          type: number
+          description: "Latitude"
+        lon:
+          type: number
+          description: "Longitude"
+        address:
+          type: string
+        elevation:
+          type: number
+          description: "Elevation in meters"
+        tsunami_safety_level:
+          $ref: "#/components/schemas/TsunamiSafetyLevel"
+      required:
+        - name
+        - lat
+        - lon
+        - address
+        - elevation
+        - tsunami_safety_level
+    UpdateShelterRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        lat:
+          type: number
+          description: "Latitude"
+        lon:
+          type: number
+          description: "Longitude"
+        address:
+          type: string
+        elevation:
+          type: number
+          description: "Elevation in meters"
+        tsunami_safety_level:
+          $ref: "#/components/schemas/TsunamiSafetyLevel"
+      required:
+        - name
+        - lat
+        - lon
+        - address
+        - elevation
+        - tsunami_safety_level
+    ListShelterResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Shelter"

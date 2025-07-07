@@ -15,6 +15,7 @@ Globals:
         ENV: !Sub "${ENV}"
         OBSTACLE_TABLE_NAME: !Ref ObstacleTable
         OBSTACLE_IMAGE_BUCKET_NAME: !Ref ObstacleImageBucket
+        SHELTER_TABLE_NAME: !Ref ShelterTable
   Api:
     OpenApiVersion: 3.0.2
 
@@ -53,6 +54,7 @@ Resources:
                   - lambda:InvokeFunction
                 Resource:
                   - Fn::Sub: ${ObstacleFunction.Arn}
+                  - Fn::Sub: ${ShelterFunction.Arn}
   FunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -80,7 +82,9 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:Scan
                   - dynamodb:Query
-                Resource: !GetAtt ObstacleTable.Arn
+                Resource:
+                  - !GetAtt ObstacleTable.Arn
+                  - !GetAtt ShelterTable.Arn
               - Effect: Allow
                 Action:
                   - s3:PutObject
@@ -119,11 +123,33 @@ Resources:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
 
+  ShelterTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ENV}-shelter-table"
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: N
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
   # Lambda
   ObstacleFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "${ENV}-osrm-ObstacleFunction"
+      Role: !GetAtt FunctionRole.Arn
+    Metadata:
+      BuildMethod: makefile
+
+  ShelterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ENV}-osrm-ShelterFunction"
       Role: !GetAtt FunctionRole.Arn
     Metadata:
       BuildMethod: makefile
@@ -166,6 +192,12 @@ Outputs:
   ObstacleAPI:
     Description: "API Gateway endpoint URL for Obstacle API"
     Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/obstacles"
+  ShelterAPI:
+    Description: "API Gateway endpoint URL for Shelter API"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/shelters"
   ObstacleFunction:
     Description: "ObstacleFunction ARN"
     Value: !GetAtt ObstacleFunction.Arn
+  ShelterFunction:
+    Description: "ShelterFunction ARN"
+    Value: !GetAtt ShelterFunction.Arn

@@ -41,3 +41,7 @@ start:
 build-ObstacleFunction:
 	go build -tags netgo -o bootstrap ./handler/obstacle
 	cp bootstrap $(ARTIFACTS_DIR)
+
+build-ShelterFunction:
+	go build -tags netgo -o bootstrap ./handler/shelter
+	cp bootstrap $(ARTIFACTS_DIR)
