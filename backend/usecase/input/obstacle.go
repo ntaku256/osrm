@@ -18,6 +18,7 @@ type ObstacleCreate struct {
 	WayID       int64      `json:"way_id"`
 	NearestDistance float64 `json:"nearestDistance" validate:"required"`
 	NoNearbyRoad  bool       `json:"noNearbyRoad"`
+	UserID string `json:"user_id"`
 }
 
 // ObstacleUpdate represents input parameters for updating an obstacle
@@ -31,6 +32,7 @@ type ObstacleUpdate struct {
 	WayID       int64      `json:"way_id"`
 	NearestDistance float64 `json:"nearestDistance" validate:"required"`
 	NoNearbyRoad  bool       `json:"noNearbyRoad"`
+	UserID string `json:"user_id"`
 }
 
 // ObstacleDelete represents input parameters for deleting an obstacle

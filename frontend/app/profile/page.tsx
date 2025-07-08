@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import type { User, UserUpdateRequest } from "@/types/user";
 import { useRouter } from "next/navigation";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -19,21 +21,28 @@ export default function ProfilePage() {
   const router = useRouter();
 
   useEffect(() => {
-    apiFetch("/users/me")
-      .then(async (res) => {
-        if (res.ok) {
-          const data: User = await res.json();
-          setUser(data);
-          setForm({
-            username: data.username,
-            age: data.age,
-            gender: data.gender,
-            has_disability: data.has_disability,
-            evacuation_level: data.evacuation_level,
-          });
-        }
-      })
-      .finally(() => setLoading(false));
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        apiFetch("/users/me")
+          .then(async (res) => {
+            if (res.ok) {
+              const data: User = await res.json();
+              setUser(data);
+              setForm({
+                username: data.username,
+                age: data.age,
+                gender: data.gender,
+                has_disability: data.has_disability,
+                evacuation_level: data.evacuation_level,
+              });
+            }
+          })
+          .finally(() => setLoading(false));
+      } else {
+        setLoading(false);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -71,7 +80,6 @@ export default function ProfilePage() {
   };
 
   if (loading) return <div>Loading...</div>;
-  if (!user) return <div>ユーザー情報が取得できません</div>;
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-8">

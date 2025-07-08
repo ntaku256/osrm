@@ -13,7 +13,7 @@ import (
 )
 
 // UpdateShelter updates an existing shelter
-func UpdateShelter(ctx context.Context, input input.ShelterUpdate) (*output.Shelter, int, error) {
+func UpdateShelter(ctx context.Context, input input.ShelterUpdate, userRole string) (*output.Shelter, int, error) {
 	id, err := strconv.Atoi(input.ID)
 	if err != nil {
 		return nil, http.StatusBadRequest, err
@@ -32,6 +32,16 @@ func UpdateShelter(ctx context.Context, input input.ShelterUpdate) (*output.Shel
 	if existingShelter == nil {
 		return nil, http.StatusNotFound, nil
 	}
+	// 認可判定
+	if existingShelter.UserID == "" {
+		if userRole != "admin" {
+			return nil, http.StatusForbidden, nil
+		}
+	} else {
+		if !(userRole == "admin" || (userRole == "editor" && existingShelter.UserID == input.UserID)) {
+			return nil, http.StatusForbidden, nil
+		}
+	}
 
 	// Update the shelter
 	shelter := db.Shelter{
@@ -42,6 +52,7 @@ func UpdateShelter(ctx context.Context, input input.ShelterUpdate) (*output.Shel
 		Address:             input.Address,
 		Elevation:           input.Elevation,
 		TsunamiSafetyLevel:  input.TsunamiSafetyLevel,
+		UserID:              input.UserID,
 		CreatedAt:           time.Now().Format(time.RFC3339), // Update the timestamp
 	}
 

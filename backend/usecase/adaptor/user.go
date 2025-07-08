@@ -32,5 +32,6 @@ func FromDBUser(dbUser *db.User) output.User {
 		IsFirebaseDeleted: dbUser.IsFirebaseDeleted,
 		CreatedAt:         dbUser.CreatedAt,
 		UpdatedAt:         dbUser.UpdatedAt,
+		Role:              dbUser.Role,
 	}
 } 

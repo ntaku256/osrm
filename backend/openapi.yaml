@@ -67,6 +67,8 @@ paths:
         passthroughBehavior: when_no_templates
         httpMethod: POST
         type: aws_proxy
+      security:
+        - firebase: []
   /obstacles/{id}:
     get:
       summary: Get an obstacle by ID
@@ -136,6 +138,8 @@ paths:
         passthroughBehavior: when_no_templates
         httpMethod: POST
         type: aws_proxy
+      security:
+        - firebase: []
     delete:
       summary: Delete an obstacle
       tags:
@@ -167,6 +171,8 @@ paths:
         passthroughBehavior: when_no_templates
         httpMethod: POST
         type: aws_proxy
+      security:
+        - firebase: []
   /obstacles/{id}/image-upload:
     post:
       summary: Generate presigned URL for image upload
@@ -213,6 +219,8 @@ paths:
         passthroughBehavior: when_no_templates
         httpMethod: POST
         type: aws_proxy
+      security:
+        - firebase: []
     options:
       summary: CORS support
       tags:
@@ -284,6 +292,8 @@ paths:
         passthroughBehavior: when_no_templates
         httpMethod: POST
         type: aws_proxy
+      security:
+        - firebase: []
     options:
       summary: CORS support
       tags:
@@ -707,6 +717,8 @@ paths:
         passthroughBehavior: when_no_templates
         httpMethod: POST
         type: aws_proxy
+      security:
+        - firebase: []
     options:
       summary: CORS support
       tags:
@@ -806,6 +818,8 @@ paths:
         passthroughBehavior: when_no_templates
         httpMethod: POST
         type: aws_proxy
+      security:
+        - firebase: []
     delete:
       summary: Delete a shelter
       tags:
@@ -837,6 +851,8 @@ paths:
         passthroughBehavior: when_no_templates
         httpMethod: POST
         type: aws_proxy
+      security:
+        - firebase: []
     options:
       summary: CORS support
       tags:
@@ -1045,6 +1061,41 @@ paths:
               method.response.header.Access-Control-Allow-Origin: "'*'"
             responseTemplates:
               application/json: "{}"
+  /walked_routes:
+    post:
+      summary: "GPS記録ルートの保存"
+      security:
+        - firebase: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                trace_points:
+                  type: array
+                  items:
+                    type: array
+                    items:
+                      type: number
+                  minItems: 2
+                start_time:
+                  type: string
+                  format: date-time
+                end_time:
+                  type: string
+                  format: date-time
+                title:
+                  type: string
+              required: [trace_points, start_time, end_time]
+      responses:
+        "201":
+          description: "保存成功"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalkedRoute"
 components:
   schemas:
     Error:
@@ -1114,12 +1165,16 @@ components:
         createdAt:
           type: string
           format: date-time
+        user_id:
+          type: string
+          description: "作成ユーザーのFirebase UID"
       required:
         - position
         - type
         - description
         - dangerLevel
         - createdAt
+        - user_id
     CreateObstacleRequest:
       type: object
       properties:
@@ -1330,6 +1385,9 @@ components:
         created_at:
           type: string
           format: date-time
+        user_id:
+          type: string
+          description: "作成ユーザーのFirebase UID"
       required:
         - id
         - name
@@ -1339,6 +1397,7 @@ components:
         - elevation
         - tsunami_safety_level
         - created_at
+        - user_id
     CreateShelterRequest:
       type: object
       properties:
@@ -1433,6 +1492,11 @@ components:
         updated_at:
           type: string
           format: date-time
+        role:
+          type: string
+          enum: [admin, editor, none]
+          default: none
+          description: "ユーザー権限"
       required:
         - firebase_uid
         - username
@@ -1443,6 +1507,7 @@ components:
         - is_firebase_deleted
         - created_at
         - updated_at
+        - role
     CreateUserRequest:
       type: object
       properties:
@@ -1485,6 +1550,45 @@ components:
         - age
         - gender
         - evacuation_level
+    WalkedRoute:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        shape:
+          type: string
+        obstacles:
+          type: array
+          items:
+            type: object
+        route_summary:
+          type: object
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+        distance:
+          type: number
+        trace_raw:
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+        title:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
   securitySchemes:
     firebase:
       type: http

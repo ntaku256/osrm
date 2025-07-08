@@ -10,4 +10,5 @@ type User struct {
 	IsFirebaseDeleted bool   `json:"is_firebase_deleted"`
 	CreatedAt         string `json:"created_at"`
 	UpdatedAt         string `json:"updated_at"`
+	Role              string `json:"role"`
 } 

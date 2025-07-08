@@ -10,6 +10,7 @@ type Shelter struct {
 	Elevation           float64 `json:"elevation"`
 	TsunamiSafetyLevel  int     `json:"tsunami_safety_level"`
 	CreatedAt           string  `json:"created_at"`
+	UserID              string  `json:"user_id"`
 }
 
 type ListShelterResponse struct {

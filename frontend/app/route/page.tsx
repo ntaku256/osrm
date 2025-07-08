@@ -958,7 +958,7 @@ export default function RoutePage() {
 
           {/* マップ */}
           <div className="lg:col-span-2">
-            <Card className="h-[1000px]">
+            <Card className="h-[800px]">
               <CardContent className="p-0 h-full">
                 <RouteMap
                   routeData={routeData}
@@ -975,6 +975,7 @@ export default function RoutePage() {
                   currentPosition={currentPosition}
                   trackPoints={trackPoints.map(point => [point.lat, point.lon] as [number, number])}
                   isRecording={isRecording}
+                  onRouteSelect={setSelectedRouteIndex}
                 />
                 {/* デバッグ用：現在の状態表示
                 {process.env.NODE_ENV === 'development' && (

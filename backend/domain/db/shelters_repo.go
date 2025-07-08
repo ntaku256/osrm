@@ -80,6 +80,7 @@ func (r *ShelterRepo) CreateOrUpdate(ctx context.Context, shelter *Shelter) (int
 	update.Set(expression.Name("address"), expression.Value(shelter.Address))
 	update.Set(expression.Name("elevation"), expression.Value(shelter.Elevation))
 	update.Set(expression.Name("tsunami_safety_level"), expression.Value(shelter.TsunamiSafetyLevel))
+	update.Set(expression.Name("user_id"), expression.Value(shelter.UserID))
 	update.Set(expression.Name("created_at"), expression.Value(shelter.CreatedAt))
 
 	expr, err := expression.NewBuilder().WithUpdate(update).Build()

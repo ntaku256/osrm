@@ -13,7 +13,7 @@ import (
 )
 
 // UpdateObstacle updates an existing obstacle
-func UpdateObstacle(ctx context.Context, input input.ObstacleUpdate) (*output.Obstacle, int, error) {
+func UpdateObstacle(ctx context.Context, input input.ObstacleUpdate, userRole string) (*output.Obstacle, int, error) {
 	id, err := strconv.Atoi(input.ID)
 	if err != nil {
 		return nil, http.StatusBadRequest, err
@@ -33,6 +33,17 @@ func UpdateObstacle(ctx context.Context, input input.ObstacleUpdate) (*output.Ob
 		return nil, http.StatusNotFound, nil
 	}
 
+	// 認可判定
+	if ob.UserID == "" {
+		if userRole != "admin" {
+			return nil, http.StatusForbidden, nil
+		}
+	} else {
+		if !(userRole == "admin" || (userRole == "editor" && ob.UserID == input.UserID)) {
+			return nil, http.StatusForbidden, nil
+		}
+	}
+
 	// Update the obstacle
 	obstacle := db.Obstacle{
 		ID:          id,
@@ -44,6 +55,7 @@ func UpdateObstacle(ctx context.Context, input input.ObstacleUpdate) (*output.Ob
 		WayID:       input.WayID,
 		NearestDistance: input.NearestDistance,
 		NoNearbyRoad:  input.NoNearbyRoad,
+		UserID:      input.UserID,
 		CreatedAt:   time.Now().Format(time.RFC3339), // Update the timestamp
 	}
 

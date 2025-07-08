@@ -34,5 +34,6 @@ func FromDBObstacle(dbObstacle *db.Obstacle) output.Obstacle {
 		NoNearbyRoad:  dbObstacle.NoNearbyRoad,
 		ImageS3Key:  dbObstacle.ImageS3Key,
 		CreatedAt:   dbObstacle.CreatedAt,
+		UserID:      dbObstacle.UserID,
 	}
 }

@@ -10,4 +10,5 @@ type User struct {
 	IsFirebaseDeleted bool `json:"is_firebase_deleted" dynamodbav:"is_firebase_deleted"` // Firebase認証が削除されているかどうか
 	CreatedAt       string `json:"created_at" dynamodbav:"created_at"`
 	UpdatedAt       string `json:"updated_at" dynamodbav:"updated_at"`
+	Role            string `json:"role" dynamodbav:"role"`
 } 

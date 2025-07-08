@@ -9,4 +9,5 @@ type Shelter struct {
 	Elevation           float64 `json:"elevation" dynamodbav:"elevation"`                 // 標高（メートル）
 	TsunamiSafetyLevel  int     `json:"tsunami_safety_level" dynamodbav:"tsunami_safety_level"` // 津波時の安全レベル
 	CreatedAt           string  `json:"created_at" dynamodbav:"created_at"`
+	UserID              string  `json:"user_id" dynamodbav:"user_id"`
 } 

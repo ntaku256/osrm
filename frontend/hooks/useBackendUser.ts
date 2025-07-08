@@ -8,6 +8,10 @@ export function useBackendUser() {
   const authUser = useAuthUser();
 
   useEffect(() => {
+    if (authUser === undefined) {
+      // Firebaseの初期化待ち: APIリクエストを送らない
+      return;
+    }
     if (!authUser) {
       setUser(undefined);
       setLoading(false);

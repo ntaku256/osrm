@@ -15,6 +15,7 @@ interface MapShelter {
   elevation: number;
   safety_level: number;
   address: string;
+  user_id: string;
 }
 
 export default function ShelterMapContainer() {
@@ -37,6 +38,7 @@ export default function ShelterMapContainer() {
                 elevation: item.elevation,
                 safety_level: item.tsunami_safety_level, // tsunami_safety_level→safety_level
                 address: item.address,
+                user_id: item.user_id,
               }))
             );
           } else {
@@ -59,6 +61,7 @@ export default function ShelterMapContainer() {
               <th className="border px-2 py-1">名前</th>
               <th className="border px-2 py-1">標高(m)</th>
               <th className="border px-2 py-1">安全レベル</th>
+              {/* <th className="border px-2 py-1">作成者UID</th> */}
             </tr>
           </thead>
           <tbody>
@@ -86,6 +89,7 @@ export default function ShelterMapContainer() {
                     {shelter.safety_level}
                   </span>
                 </td>
+                {/* <td className="border px-2 py-1">{shelter.user_id}</td> */}
               </tr>
             ))}
           </tbody>

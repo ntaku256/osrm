@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
+	"webhook/domain/db"
 	apiinput "webhook/pkg/api/input"
+	"webhook/shared/auth"
 	"webhook/usecase"
 	"webhook/usecase/input"
 
@@ -38,6 +41,27 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		}, nil
 	}
 
+	// Firebase認証（GET系以外で）
+	authHeader := request.Headers["Authorization"]
+	token, _, err := auth.ValidateFirebaseToken(ctx, authHeader)
+	firebaseUID := ""
+	userRole := "none"
+	if !(request.HTTPMethod == "GET" && (request.Resource == "/shelters" || request.Resource == "/shelters/{id}")) {
+		if err != nil {
+			return events.APIGatewayProxyResponse{
+				StatusCode: http.StatusUnauthorized,
+				Body:       `{"message":"Unauthorized"}`,
+				Headers: map[string]string{"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+			}, nil
+		}
+		firebaseUID = token.UID
+		userRepo, _ := db.NewUserRepo(ctx)
+		user, _, _ := userRepo.GetByFirebaseUID(ctx, firebaseUID)
+		if user != nil {
+			userRole = user.Role
+		}
+	}
+
 	// Handle different HTTP methods and paths
 	switch {
 	// GET /shelters - List all shelters
@@ -62,6 +86,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			Address:             createRequest.Address,
 			Elevation:           createRequest.Elevation,
 			TsunamiSafetyLevel:  createRequest.TsunamiSafetyLevel,
+			UserID:              firebaseUID,
 		}
 
 		createdShelter, statusCode, err := usecase.CreateShelter(ctx, input)
@@ -93,24 +118,27 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// PUT /shelters/{id} - Update a shelter
 	case request.HTTPMethod == "PUT" && request.Resource == "/shelters/{id}":
 		idStr := request.PathParameters["id"]
-
-		// Parse the request body
-		var updateRequest apiinput.UpdateShelterRequest
-		if err := json.Unmarshal([]byte(request.Body), &updateRequest); err != nil {
-			return errorResponse(logger, request, http.StatusBadRequest, "Invalid request body", nil, err)
+		shelterRepo, _ := db.NewShelterRepo(ctx)
+		idInt, _ := strconv.Atoi(idStr)
+		shelter, _, _ := shelterRepo.Get(ctx, idInt)
+		if shelter == nil {
+			return errorResponse(logger, request, http.StatusNotFound, "Shelter not found", nil, nil)
 		}
-
+		if !(userRole == "admin" || (userRole == "editor" && shelter.UserID == firebaseUID)) {
+			return errorResponse(logger, request, http.StatusForbidden, "Forbidden", nil, nil)
+		}
 		input := input.ShelterUpdate{
 			ID:                  idStr,
-			Name:                updateRequest.Name,
-			Lat:                 updateRequest.Lat,
-			Lon:                 updateRequest.Lon,
-			Address:             updateRequest.Address,
-			Elevation:           updateRequest.Elevation,
-			TsunamiSafetyLevel:  updateRequest.TsunamiSafetyLevel,
+			Name:                shelter.Name,
+			Lat:                 shelter.Lat,
+			Lon:                 shelter.Lon,
+			Address:             shelter.Address,
+			Elevation:           shelter.Elevation,
+			TsunamiSafetyLevel:  shelter.TsunamiSafetyLevel,
+			UserID:              firebaseUID,
 		}
 
-		updatedShelter, statusCode, err := usecase.UpdateShelter(ctx, input)
+		updatedShelter, statusCode, err := usecase.UpdateShelter(ctx, input, userRole)
 		if err != nil {
 			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}
@@ -120,11 +148,20 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// DELETE /shelters/{id} - Delete a shelter
 	case request.HTTPMethod == "DELETE" && request.Resource == "/shelters/{id}":
 		idStr := request.PathParameters["id"]
+		shelterRepo, _ := db.NewShelterRepo(ctx)
+		idInt, _ := strconv.Atoi(idStr)
+		shelter, _, _ := shelterRepo.Get(ctx, idInt)
+		if shelter == nil {
+			return errorResponse(logger, request, http.StatusNotFound, "Shelter not found", nil, nil)
+		}
+		if !(userRole == "admin" || (userRole == "editor" && shelter.UserID == firebaseUID)) {
+			return errorResponse(logger, request, http.StatusForbidden, "Forbidden", nil, nil)
+		}
 		input := input.ShelterDelete{
 			ID: idStr,
 		}
 
-		statusCode, err := usecase.DeleteShelter(ctx, input)
+		statusCode, err := usecase.DeleteShelter(ctx, input, firebaseUID, userRole)
 		if err != nil {
 			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}

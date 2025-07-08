@@ -38,6 +38,7 @@ func UpdateUser(ctx context.Context, input input.UserUpdate) (*output.User, int,
 		EvacuationLevel:   input.EvacuationLevel,
 		IsFirebaseDeleted: existingUser.IsFirebaseDeleted, // Keep existing Firebase deletion status
 		CreatedAt:         existingUser.CreatedAt,         // Keep original creation time
+		Role:              existingUser.Role,              // Keep original role
 		UpdatedAt:         time.Now().Format(time.RFC3339),
 	}
 

@@ -101,6 +101,7 @@ Resources:
                   - !GetAtt ObstacleTable.Arn
                   - !GetAtt ShelterTable.Arn
                   - !GetAtt UserTable.Arn
+                  - !GetAtt WalkedRoutesTable.Arn
               - Effect: Allow
                 Action:
                   - s3:PutObject
@@ -171,6 +172,20 @@ Resources:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
 
+  WalkedRoutesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ENV}-walked-routes-table"
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
   # Lambda
   ObstacleFunction:
     Type: AWS::Serverless::Function
@@ -192,6 +207,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "${ENV}-osrm-UserFunction"
+      Role: !GetAtt FunctionRole.Arn
+    Metadata:
+      BuildMethod: makefile
+
+  WalkedRouteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ENV}-osrm-WalkedRouteFunction"
       Role: !GetAtt FunctionRole.Arn
     Metadata:
       BuildMethod: makefile
@@ -249,3 +272,9 @@ Outputs:
   UserFunction:
     Description: "UserFunction ARN"
     Value: !GetAtt UserFunction.Arn
+  WalkedRouteAPI:
+    Description: "API Gateway endpoint URL for WalkedRoute API"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/walked_routes"
+  WalkedRouteFunction:
+    Description: "WalkedRouteFunction ARN"
+    Value: !GetAtt WalkedRouteFunction.Arn

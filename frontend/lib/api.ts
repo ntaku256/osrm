@@ -8,6 +8,7 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
 
   return fetch(url, {
     ...init,
+    mode: 'cors',
     headers: {
       ...(init.headers || {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

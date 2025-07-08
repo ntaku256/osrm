@@ -7,6 +7,7 @@ export interface Shelter {
   elevation: number;
   tsunami_safety_level: number;
   created_at: string; // ISO8601
+  user_id: string;
 }
 
 export interface ShelterListResponse {

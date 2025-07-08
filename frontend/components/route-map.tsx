@@ -34,6 +34,8 @@ interface RouteMapProps {
   excludeLocations?: [number, number][]
   selectedObstacle?: number | null
   onAddToExcludeList?: (position: [number, number]) => void
+  onRouteSelect?: (index: number) => void
+  height?: string
 }
 
 export default function RouteMap({
@@ -51,6 +53,8 @@ export default function RouteMap({
   excludeLocations = [],
   selectedObstacle = null,
   onAddToExcludeList,
+  onRouteSelect,
+  height = '800px',
 }: RouteMapProps) {
   // 選択されたルートを取得するヘルパー関数
   const getSelectedRoute = () => {
@@ -349,6 +353,9 @@ export default function RouteMap({
                 marker.on('click', (e) => {
                   if (e.originalEvent) {
                     L.DomEvent.stopPropagation(e)
+                    if (onRouteSelect) {
+                      onRouteSelect(idx)
+                    }
                   }
                 })
               }
@@ -468,7 +475,7 @@ export default function RouteMap({
       <div
         ref={mapContainerRef}
         className="w-full h-full rounded-lg overflow-hidden bg-gray-100 z-0"
-        style={{ minHeight: '800px' }}
+        style={{ minHeight: height, height }}
       />
 
       {/* Leaflet読み込み中 */}
@@ -507,18 +514,24 @@ export default function RouteMap({
       )} */}
       {routeData && !clickMode && (
         <div className="absolute top-4 left-4 bg-white p-3 rounded-lg shadow-lg max-w-xs">
-          <h3 className="font-bold text-sm mb-2">ルート情報</h3>
+          <h3 className="font-bold text-sm mb-2 text-gray-600">ルート情報</h3>
           <div className="text-xs space-y-1">
-            <div>距離: {routeData.trip?.summary?.length?.toFixed(1)}km</div>
-            <div>時間: {Math.round((routeData.trip?.summary?.time || 0) / 60)}分</div>
-            <div className="text-red-600 font-medium">
-              障害物: {routeData.obstacles?.length || 0}個
-            </div>
+            {(() => {
+              const selectedRoute = getSelectedRoute();
+              if (!selectedRoute) return <div className="text-gray-400">ルート情報なし</div>;
+              return <>
+                <div className="text-gray-600">距離: {selectedRoute.summary?.length?.toFixed(1)}km</div>
+                <div className="text-gray-600">時間: {Math.round((selectedRoute.summary?.time || 0) / 60)}分</div>
+                <div className="text-red-600 font-medium">
+                  障害物: {selectedRoute.obstacles?.length || 0}個
+                </div>
+              </>;
+            })()}
           </div>
         </div>
       )}
 
-      <div className="flex items-center gap-2 mt-2 absolute left-1/2 -translate-x-1/2 bottom-4 z-0 bg-white bg-opacity-80 rounded px-3 py-2 shadow">
+      <div className="flex items-center gap-2 absolute left-1/2 -translate-x-1/2 bottom-2 z-10 bg-white bg-opacity-90 rounded px-3 py-2 shadow border border-gray-200">
         <span className="text-black">ズーム</span>
         <input
           type="range"

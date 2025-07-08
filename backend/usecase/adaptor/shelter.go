@@ -30,5 +30,6 @@ func FromDBShelter(dbShelter *db.Shelter) output.Shelter {
 		Elevation:           dbShelter.Elevation,
 		TsunamiSafetyLevel:  dbShelter.TsunamiSafetyLevel,
 		CreatedAt:           dbShelter.CreatedAt,
+		UserID:              dbShelter.UserID,
 	}
 } 

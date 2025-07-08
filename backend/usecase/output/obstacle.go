@@ -13,6 +13,7 @@ type Obstacle struct {
 	NoNearbyRoad  bool       `json:"noNearbyRoad"`
 	ImageS3Key  string     `json:"image_s3_key"`
 	CreatedAt   string     `json:"createdAt"`
+	UserID      string     `json:"user_id"`
 }
 
 type ListObstacleResponse struct {

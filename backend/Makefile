@@ -49,3 +49,7 @@ build-ShelterFunction:
 build-UserFunction:
 	go build -tags netgo -o bootstrap ./handler/user
 	cp bootstrap $(ARTIFACTS_DIR)
+
+build-WalkedRouteFunction:
+	GOARCH=arm64 GOOS=linux go build -tags netgo -o bootstrap ./handler/walked_route
+	cp bootstrap $(ARTIFACTS_DIR)

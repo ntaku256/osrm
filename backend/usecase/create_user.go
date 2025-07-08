@@ -22,6 +22,7 @@ func CreateUser(ctx context.Context, input input.UserCreate) (*output.User, int,
 		HasDisability:     input.HasDisability,
 		EvacuationLevel:   input.EvacuationLevel,
 		IsFirebaseDeleted: false, // 新規ユーザーは削除されていない
+		Role:              "none",
 		CreatedAt:         time.Now().Format(time.RFC3339),
 		UpdatedAt:         time.Now().Format(time.RFC3339),
 	}

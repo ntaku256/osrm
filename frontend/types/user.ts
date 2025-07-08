@@ -8,6 +8,7 @@ export interface User {
   is_firebase_deleted: boolean;
   created_at: string;
   updated_at: string;
+  role: string;
 }
 
 export interface UserUpdateRequest {

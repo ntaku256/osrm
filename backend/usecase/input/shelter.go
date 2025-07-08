@@ -16,6 +16,7 @@ type ShelterCreate struct {
 	Address             string  `json:"address" validate:"required"`
 	Elevation           float64 `json:"elevation" validate:"required"`
 	TsunamiSafetyLevel  int     `json:"tsunami_safety_level" validate:"required"`
+	UserID              string  `json:"user_id"`
 }
 
 // ShelterUpdate represents input parameters for updating a shelter
@@ -27,6 +28,7 @@ type ShelterUpdate struct {
 	Address             string  `json:"address" validate:"required"`
 	Elevation           float64 `json:"elevation" validate:"required"`
 	TsunamiSafetyLevel  int     `json:"tsunami_safety_level" validate:"required"`
+	UserID              string  `json:"user_id"`
 }
 
 // ShelterDelete represents input parameters for deleting a shelter

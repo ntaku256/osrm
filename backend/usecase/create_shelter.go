@@ -26,6 +26,7 @@ func CreateShelter(ctx context.Context, input input.ShelterCreate) (*output.Shel
 		Address:             input.Address,
 		Elevation:           input.Elevation,
 		TsunamiSafetyLevel:  input.TsunamiSafetyLevel,
+		UserID:              input.UserID,
 		CreatedAt:           time.Now().Format(time.RFC3339),
 	}
 

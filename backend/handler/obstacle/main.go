@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
+	"webhook/domain/db"
 	"webhook/domain/s3"
 	apiinput "webhook/pkg/api/input"
+	"webhook/shared/auth"
 	"webhook/usecase"
 	"webhook/usecase/input"
 
@@ -30,6 +33,31 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// Initialize logger
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
+
+	// Firebase認証（GET系・Valhalla系以外で）
+	skipAuth :=
+		(request.HTTPMethod == "GET" && (request.Resource == "/obstacles" || request.Resource == "/obstacles/{id}")) ||
+		(request.HTTPMethod == "POST" && (request.Resource == "/route-with-obstacles" || request.Resource == "/locate" || request.Resource == "/trace_attributes" || request.Resource == "/trace_route" || request.Resource == "/isochrone"))
+
+	authHeader := request.Headers["Authorization"]
+	token, _, err := auth.ValidateFirebaseToken(ctx, authHeader)
+	firebaseUID := ""
+	userRole := "none"
+	if !skipAuth {
+		if err != nil {
+			return events.APIGatewayProxyResponse{
+				StatusCode: http.StatusUnauthorized,
+				Body:       `{"message":"Unauthorized"}`,
+				Headers: map[string]string{"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+			}, nil
+		}
+		firebaseUID = token.UID
+		userRepo, _ := db.NewUserRepo(ctx)
+		user, _, _ := userRepo.GetByFirebaseUID(ctx, firebaseUID)
+		if user != nil {
+			userRole = user.Role
+		}
+	}
 
 	// main.go のHandleRequestメソッドに追加
 	if request.HTTPMethod == "OPTIONS" {
@@ -69,6 +97,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			WayID:       createRequest.WayID,
 			NearestDistance: createRequest.NearestDistance,
 			NoNearbyRoad:  createRequest.NoNearbyRoad,
+			UserID:      firebaseUID,
 		}
 
 		createdObstacle, statusCode, err := usecase.CreateObstacle(ctx, input)
@@ -100,6 +129,15 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// PUT /obstacles/{id} - Update an obstacle
 	case request.HTTPMethod == "PUT" && request.Resource == "/obstacles/{id}":
 		idStr := request.PathParameters["id"]
+		obstacleRepo, _ := db.NewObstacleRepo(ctx)
+		idInt, _ := strconv.Atoi(idStr)
+		ob, _, _ := obstacleRepo.Get(ctx, idInt)
+		if ob == nil {
+			return errorResponse(logger, request, http.StatusNotFound, "Obstacle not found", nil, nil)
+		}
+		if !(userRole == "admin" || (userRole == "editor" && ob.UserID == firebaseUID)) {
+			return errorResponse(logger, request, http.StatusForbidden, "Forbidden", nil, nil)
+		}
 
 		// Parse the request body
 		var updateRequest apiinput.UpdateObstacleRequest
@@ -117,9 +155,10 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			WayID:       updateRequest.WayID,
 			NearestDistance: updateRequest.NearestDistance,
 			NoNearbyRoad:  updateRequest.NoNearbyRoad,
+			UserID:      firebaseUID,
 		}
 
-		updatedObstacle, statusCode, err := usecase.UpdateObstacle(ctx, input)
+		updatedObstacle, statusCode, err := usecase.UpdateObstacle(ctx, input, userRole)
 		if err != nil {
 			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}
@@ -129,11 +168,20 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// DELETE /obstacles/{id} - Delete an obstacle
 	case request.HTTPMethod == "DELETE" && request.Resource == "/obstacles/{id}":
 		idStr := request.PathParameters["id"]
+		obstacleRepo, _ := db.NewObstacleRepo(ctx)
+		idInt, _ := strconv.Atoi(idStr)
+		ob, _, _ := obstacleRepo.Get(ctx, idInt)
+		if ob == nil {
+			return errorResponse(logger, request, http.StatusNotFound, "Obstacle not found", nil, nil)
+		}
+		if !(userRole == "admin" || (userRole == "editor" && ob.UserID == firebaseUID)) {
+			return errorResponse(logger, request, http.StatusForbidden, "Forbidden", nil, nil)
+		}
 		input := input.ObstacleDelete{
 			ID: idStr,
 		}
 
-		statusCode, err := usecase.DeleteObstacle(ctx, input)
+		statusCode, err := usecase.DeleteObstacle(ctx, input, firebaseUID, userRole)
 		if err != nil {
 			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}
@@ -149,6 +197,15 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// POST /obstacles/{id}/image-upload - Generate presigned URL for image upload
 	case request.HTTPMethod == "POST" && request.Resource == "/obstacles/{id}/image-upload":
 		idStr := request.PathParameters["id"]
+		obstacleRepo, _ := db.NewObstacleRepo(ctx)
+		idInt, _ := strconv.Atoi(idStr)
+		ob, _, _ := obstacleRepo.Get(ctx, idInt)
+		if ob == nil {
+			return errorResponse(logger, request, http.StatusNotFound, "Obstacle not found", nil, nil)
+		}
+		if !(userRole == "admin" || (userRole == "editor" && ob.UserID == firebaseUID)) {
+			return errorResponse(logger, request, http.StatusForbidden, "Forbidden", nil, nil)
+		}
 		var req struct {
 			Filename string `json:"filename"`
 		}
@@ -173,6 +230,15 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// PUT /obstacles/{id}/image - Save image_s3_key to obstacle
 	case request.HTTPMethod == "PUT" && request.Resource == "/obstacles/{id}/image":
 		idStr := request.PathParameters["id"]
+		obstacleRepo, _ := db.NewObstacleRepo(ctx)
+		idInt, _ := strconv.Atoi(idStr)
+		ob, _, _ := obstacleRepo.Get(ctx, idInt)
+		if ob == nil {
+			return errorResponse(logger, request, http.StatusNotFound, "Obstacle not found", nil, nil)
+		}
+		if !(userRole == "admin" || (userRole == "editor" && ob.UserID == firebaseUID)) {
+			return errorResponse(logger, request, http.StatusForbidden, "Forbidden", nil, nil)
+		}
 		var req struct {
 			ImageS3Key string `json:"image_s3_key"`
 		}
