@@ -17,6 +17,7 @@ Globals:
         OBSTACLE_IMAGE_BUCKET_NAME: !Ref ObstacleImageBucket
         SHELTER_TABLE_NAME: !Ref ShelterTable
         USER_TABLE_NAME: !Ref UserTable
+        WALKED_ROUTES_TABLE_NAME: !Ref WalkedRoutesTable
   Api:
     OpenApiVersion: 3.0.2
 
@@ -70,6 +71,7 @@ Resources:
                   - Fn::Sub: ${ObstacleFunction.Arn}
                   - Fn::Sub: ${ShelterFunction.Arn}
                   - Fn::Sub: ${UserFunction.Arn}
+                  - Fn::Sub: ${WalkedRouteFunction.Arn}
   FunctionRole:
     Type: AWS::IAM::Role
     Properties:
