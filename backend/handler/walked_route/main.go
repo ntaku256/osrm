@@ -25,6 +25,19 @@ type WalkedRouteInput struct {
 }
 
 func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	// OPTIONSリクエスト（CORSプリフライト）対応
+	if request.HTTPMethod == "OPTIONS" {
+		return events.APIGatewayProxyResponse{
+			StatusCode: 200,
+			Headers: map[string]string{
+				"Access-Control-Allow-Origin": "*",
+				"Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE",
+				"Access-Control-Allow-Headers": "Content-Type,Authorization",
+			},
+			Body: "",
+		}, nil
+	}
+
 	// 1. Firebase認証
 	authHeader := request.Headers["Authorization"]
 	token, _, err := auth.ValidateFirebaseToken(ctx, authHeader)

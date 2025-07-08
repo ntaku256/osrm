@@ -8,6 +8,7 @@ tags:
   - name: Valhalla
   - name: Shelter
   - name: User
+  - name: WalkedRoute
 
 paths:
   /obstacles:
@@ -1064,6 +1065,8 @@ paths:
   /walked_routes:
     post:
       summary: "GPS記録ルートの保存"
+      tags:
+        - WalkedRoute
       security:
         - firebase: []
       requestBody:
@@ -1104,6 +1107,36 @@ paths:
         passthroughBehavior: when_no_templates
         httpMethod: POST
         type: aws_proxy
+    options:
+      summary: CORS support
+      tags:
+        - WalkedRoute
+      responses:
+        "200":
+          description: CORS support
+          headers:
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          "200":
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,PUT,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
 components:
   schemas:
     Error:
