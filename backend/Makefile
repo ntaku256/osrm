@@ -7,6 +7,12 @@ format:
 lint:
 	go vet ./...
 
+vendor:
+	go mod vendor
+
+sam-build:
+	sam build --use-container --cached --parallel
+
 # プロジェクトをデプロイ用にビルド
 build:
 	set GOWORK=off \
@@ -38,18 +44,35 @@ deploy-prd:
 start:
 	sam local start-api
 
+ARTIFACTS_DIR=artifacts
 build-ObstacleFunction:
+	mkdir -p $(ARTIFACTS_DIR)
 	go build -tags netgo -o bootstrap ./handler/obstacle
 	cp bootstrap $(ARTIFACTS_DIR)
 
 build-ShelterFunction:
+	mkdir -p $(ARTIFACTS_DIR)
 	go build -tags netgo -o bootstrap ./handler/shelter
 	cp bootstrap $(ARTIFACTS_DIR)
 
 build-UserFunction:
+	mkdir -p $(ARTIFACTS_DIR)
 	go build -tags netgo -o bootstrap ./handler/user
 	cp bootstrap $(ARTIFACTS_DIR)
 
 build-WalkedRouteFunction:
+	mkdir -p $(ARTIFACTS_DIR)
 	GOARCH=arm64 GOOS=linux go build -tags netgo -o bootstrap ./handler/walked_route
 	cp bootstrap $(ARTIFACTS_DIR)
+
+sam-build-ObstacleFunction:
+	sam build --use-container --cached --parallel ObstacleFunction
+
+sam-build-ShelterFunction:
+	sam build --use-container --cached --parallel ShelterFunction
+
+sam-build-UserFunction:
+	sam build --use-container --cached --parallel UserFunction
+
+sam-build-WalkedRouteFunction:
+	sam build --use-container --cached --parallel WalkedRouteFunction
