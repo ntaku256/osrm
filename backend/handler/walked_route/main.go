@@ -66,8 +66,18 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	if valhallaURL == "" {
 		valhallaURL = "http://133.167.121.88:8080/trace_route"
 	}
+	// TracePointsを[{lat, lon}, ...]形式に変換
+	shape := make([]map[string]float64, 0, len(input.TracePoints))
+	for _, pt := range input.TracePoints {
+		if len(pt) == 2 {
+			shape = append(shape, map[string]float64{
+				"lat": pt[0],
+				"lon": pt[1],
+			})
+		}
+	}
 	valhallaReq := map[string]interface{}{
-		"shape": input.TracePoints,
+		"shape": shape,
 		"costing": "pedestrian",
 	}
 	valhallaBody, _ := json.Marshal(valhallaReq)
@@ -92,15 +102,22 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	}
 	err = json.Unmarshal(respBytes, &valhallaResp)
 	if err != nil || len(valhallaResp.Trip.Legs) == 0 {
+		// デバッグ用にリクエスト・レスポンス内容を返す
+		debugInfo := map[string]interface{}{
+			"message":      "Valhalla parse error",
+			"valhallaResp": string(respBytes), // 生レスポンス
+			"valhallaReq":  valhallaReq,       // リクエスト内容
+		}
+		debugBody, _ := json.Marshal(debugInfo)
 		return events.APIGatewayProxyResponse{
 			StatusCode: http.StatusBadGateway,
-			Body:       `{"message":"Valhalla parse error"}`,
+			Body:       string(debugBody),
 			Headers:    map[string]string{"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
 		}, nil
 	}
 
 	// 4. WalkedRoute構築
-	shape := valhallaResp.Trip.Legs[0].Shape
+	shape = valhallaResp.Trip.Legs[0].Shape
 	summary := valhallaResp.Trip.Summary
 	obstacles := valhallaResp.Trip.Obstacles
 	distance := 0.0
