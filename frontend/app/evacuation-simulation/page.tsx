@@ -65,22 +65,6 @@ export default function EvacuationSimulationPage() {
       .finally(() => setLoading(false));
   }, [currentPos, user]);
 
-  // ナビ用: 現在地をwatchPositionで定期更新
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-    let watchId: number | null = null;
-    watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setCurrentPos([pos.coords.latitude, pos.coords.longitude]);
-      },
-      () => {},
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
-    );
-    return () => {
-      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-    };
-  }, []);
-
   // ナビ用: maneuversから音声案内テキストを抽出
   const maneuvers: any[] =
     routeData?.trip?.legs?.[0]?.maneuvers ?? [];
