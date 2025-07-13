@@ -36,6 +36,7 @@ interface RouteMapProps {
   onAddToExcludeList?: (position: [number, number]) => void
   onRouteSelect?: (index: number) => void
   height?: string
+  highlightSegment?: [number, number][]
 }
 
 export default function RouteMap({
@@ -55,6 +56,7 @@ export default function RouteMap({
   onAddToExcludeList,
   onRouteSelect,
   height = '800px',
+  highlightSegment = [],
 }: RouteMapProps) {
   // 選択されたルートを取得するヘルパー関数
   const getSelectedRoute = () => {
@@ -296,81 +298,70 @@ export default function RouteMap({
     if (!routeData) return
 
     try {
-      // すべてのルート（メイン＋alternates）を配列化
-      const allTrips = [routeData.trip, ...(routeData.alternates?.map(a => a.trip) ?? [])];
-      let allRouteBounds = [];
-      allTrips.forEach((trip, idx) => {
-        if (trip && Array.isArray(trip.legs)) {
-          trip.legs.forEach((leg) => {
-            if (leg.shape) {
-              const coordinates = decodePolyline(leg.shape, 6)
-              // 座標が日本の範囲内かチェック
-              const isInJapanRange = coordinates.every(([lat, lng]) =>
+      // メインルート（trip）のみ描画
+      const trip = routeData.trip;
+      let routeBounds = [];
+      if (trip && Array.isArray(trip.legs)) {
+        trip.legs.forEach((leg) => {
+          if (leg.shape) {
+            const coordinates = decodePolyline(leg.shape, 6)
+            // 座標が日本の範囲内かチェック
+            const isInJapanRange = coordinates.every(([lat, lng]) =>
+              lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
+            )
+            // もし精度6で範囲外なら精度5を試す
+            if (!isInJapanRange && coordinates.length > 0) {
+              const coordinatesPrecision5 = decodePolyline(leg.shape, 5)
+              const isInJapanRangeP5 = coordinatesPrecision5.every(([lat, lng]) =>
                 lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
               )
-              // もし精度6で範囲外なら精度5を試す
-              if (!isInJapanRange && coordinates.length > 0) {
-                const coordinatesPrecision5 = decodePolyline(leg.shape, 5)
-                const isInJapanRangeP5 = coordinatesPrecision5.every(([lat, lng]) =>
-                  lat >= 20 && lat <= 46 && lng >= 123 && lng <= 146
-                )
-                if (isInJapanRangeP5) {
-                  coordinates.length = 0
-                  coordinates.push(...coordinatesPrecision5)
-                }
-              }
-              // ルートライン
-              const isSelected = idx === selectedRouteIndex;
-              const routeLine = L.polyline(coordinates, {
-                color: isSelected ? '#3388ff' : '#94a3b8',
-                weight: isSelected ? 6 : 4,
-                opacity: isSelected ? 0.8 : 0.5,
-                interactive: false
-              }).addTo(routeLayerRef.current)
-              allRouteBounds.push(...coordinates)
-              // ルート番号ピン（詳細付き）
-              if (coordinates.length > 0) {
-                const midIdx = Math.floor(coordinates.length / 2)
-                const midPoint = coordinates[midIdx]
-                const summary = trip.summary
-                const popupContent = `
-                  <div style=\"min-width:180px;\">
-                    <div style=\"font-weight:bold;\">ルート${idx + 1}</div>
-                    <div>距離: ${summary?.length?.toFixed(1) ?? '-'} km</div>
-                    <div>時間: ${summary?.time ? Math.round(summary.time / 60) : '-'} 分</div>
-                    <div style='margin-top:4px;font-size:11px;max-width:300px;overflow-wrap:break-word;'><b>Shape:</b><br><code>${leg.shape}</code></div>
-                  </div>
-                `
-                const labelIcon = L.divIcon({
-                  html: `<div style=\"background:${isSelected ? '#3388ff' : '#94a3b8'};color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:16px;border:2px solid #fff;box-shadow:0 2px 6px #0002;\">${idx + 1}</div>`
-                  ,
-                  className: "route-number-label",
-                  iconSize: [32, 32],
-                  iconAnchor: [16, 16],
-                })
-                const marker = L.marker(midPoint, { icon: labelIcon }).addTo(routeLayerRef.current)
-                marker.bindPopup(popupContent)
-                marker.on('click', (e) => {
-                  if (e.originalEvent) {
-                    L.DomEvent.stopPropagation(e)
-                    if (onRouteSelect) {
-                      onRouteSelect(idx)
-                    }
-                  }
-                })
+              if (isInJapanRangeP5) {
+                coordinates.length = 0
+                coordinates.push(...coordinatesPrecision5)
               }
             }
-          })
-        }
-      })
-      // 全ルートの境界にマップをフィット
-      if (allRouteBounds.length > 0) {
-        const bounds = L.latLngBounds(allRouteBounds)
+            // ルートライン
+            const routeLine = L.polyline(coordinates, {
+              color: '#3388ff',
+              weight: 6,
+              opacity: 0.8,
+              interactive: false
+            }).addTo(routeLayerRef.current)
+            routeBounds.push(...coordinates)
+            // ルート番号ピン（詳細付き）
+            if (coordinates.length > 0) {
+              const midIdx = Math.floor(coordinates.length / 2)
+              const midPoint = coordinates[midIdx]
+              const summary = trip.summary
+              const popupContent = `
+                <div style=\"min-width:180px;\">
+                  <div style=\"font-weight:bold;\">ルート</div>
+                  <div>距離: ${summary?.length?.toFixed(1) ?? '-'} km</div>
+                  <div>時間: ${summary?.time ? Math.round(summary.time / 60) : '-'} 分</div>
+                  <div style='margin-top:4px;font-size:11px;max-width:300px;overflow-wrap:break-word;'><b>Shape:</b><br><code>${leg.shape}</code></div>
+                </div>
+              `
+              const labelIcon = L.divIcon({
+                html: `<div style=\"background:#3388ff;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:16px;border:2px solid #fff;box-shadow:0 2px 6px #0002;\">1</div>`
+                ,
+                className: "route-number-label",
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+              })
+              const marker = L.marker(midPoint, { icon: labelIcon }).addTo(routeLayerRef.current)
+              marker.bindPopup(popupContent)
+            }
+          }
+        })
+      }
+      // ルートの境界にマップをフィット
+      if (routeBounds.length > 0) {
+        const bounds = L.latLngBounds(routeBounds)
         mapRef.current.fitBounds(bounds, { padding: [20, 20] })
         setZoom(mapRef.current.getZoom())
       }
-      // 障害物マーカーの表示（選択中ルートのみ）
-      const selectedTrip = allTrips[selectedRouteIndex];
+      // 障害物マーカーの表示（tripのみ）
+      const selectedTrip = trip;
       if (selectedTrip?.obstacles && selectedTrip.obstacles.length > 0) {
         selectedTrip.obstacles.forEach((obstacle) => {
           const isSelected = selectedObstacle === obstacle.id
@@ -427,12 +418,10 @@ export default function RouteMap({
       }
 
       // ルート情報表示
-      const selectedRoute = getSelectedRoute()
-      if (selectedRoute?.summary) {
-        const summary = selectedRoute.summary
+      if (trip?.summary) {
+        const summary = trip.summary
         const totalTime = Math.round(summary.time / 60) // 分に変換
         const totalDistance = summary.length.toFixed(1) // km
-
         console.log(`ルート情報: ${totalDistance}km, ${totalTime}分, 障害物: ${routeData.obstacles?.length || 0}個`)
       }
 
@@ -440,6 +429,21 @@ export default function RouteMap({
       console.error("Failed to display route:", error)
     }
   }, [mapReady, routeData, selectedObstacle, selectedRouteIndex])
+
+  // ハイライト区間の描画
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !highlightSegment || highlightSegment.length < 2) return;
+    if (!window._highlightLayer) {
+      window._highlightLayer = L.layerGroup().addTo(mapRef.current);
+    }
+    window._highlightLayer.clearLayers();
+    L.polyline(highlightSegment, {
+      color: 'orange',
+      weight: 10,
+      opacity: 0.9,
+      interactive: false
+    }).addTo(window._highlightLayer);
+  }, [mapReady, highlightSegment]);
 
   // ズームバーで地図のズームを変更
   useEffect(() => {

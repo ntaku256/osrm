@@ -8,6 +8,15 @@ import { useBackendUser } from "@/hooks/useBackendUser";
 
 const RouteMap = dynamic(() => import("@/components/route-map"), { ssr: false });
 
+const decodePolyline = (encoded: string): [number, number][] => {
+  try {
+    const { decodePolyline } = require("@/utils/polyline");
+    return decodePolyline(encoded);
+  } catch {
+    return [];
+  }
+};
+
 export default function EvacuationSimulationPage() {
   const [currentPos, setCurrentPos] = useState<[number, number] | null>(null);
   const [shelters, setShelters] = useState<Shelter[]>([]);
@@ -34,84 +43,27 @@ export default function EvacuationSimulationPage() {
     );
   }, []);
 
-  // 2. 避難所リスト取得
+  // 2~4. 避難所・ルート取得をまとめてAPIで取得
   useEffect(() => {
-    apiFetch("/shelters").then(async (res) => {
-      if (res.ok) {
-        const data = await res.json();
-        setShelters(data.items || []);
-      }
-    });
-  }, []);
-
-  // 3. 最寄り避難所選択
-  useEffect(() => {
-    if (!currentPos || shelters.length === 0) return;
-    let minDist = Infinity;
-    let nearest: Shelter | null = null;
-    shelters.forEach((s) => {
-      const d = Math.sqrt(
-        Math.pow(currentPos[0] - s.lat, 2) + Math.pow(currentPos[1] - s.lon, 2)
-      );
-      if (d < minDist) {
-        minDist = d;
-        nearest = s;
-      }
-    });
-    setNearestShelter(nearest);
-  }, [currentPos, shelters]);
-
-  // 4. ルート検索（dangerLevel回避ロジック付き）
-  useEffect(() => {
-    if (!currentPos || !nearestShelter || !user) return;
+    if (!currentPos || !user) return;
     setLoading(true);
     setError("");
-    let attempts = 0;
-    let excludeLocations: { lat: number; lon: number }[] = [];
-    let bestRoute: any = null;
-    let bestDangerSum = Infinity;
-
-    const search = async () => {
-      attempts++;
-      const res = await routeApi.getRouteWithObstacles({
-        locations: [
-          { lat: currentPos[0], lon: currentPos[1] },
-          { lat: nearestShelter.lat, lon: nearestShelter.lon }
-        ],
-        costing: "pedestrian",
-        language: "ja-JP",
-        exclude_locations: excludeLocations.length > 0 ? excludeLocations : undefined,
-      });
-      if (res.data) {
-        const obstacles = res.data.trip?.obstacles || [];
-        const highDanger = obstacles.filter(
-          (o: any) => o.dangerLevel > user.evacuation_level
-        );
-        // dangerLevel合計
-        const dangerSum = obstacles.reduce((sum: number, o: any) => sum + (o.dangerLevel || 0), 0);
-        if (dangerSum < bestDangerSum) {
-          bestDangerSum = dangerSum;
-          bestRoute = res.data;
-        }
-        if (highDanger.length > 0 && attempts < 3) {
-          // 高危険障害物を回避して再検索
-          excludeLocations.push(...highDanger.map((o: any) => ({ lat: o.position[0], lon: o.position[1] })));
-          search();
-        } else {
-          setRouteData(bestRoute);
-          if (highDanger.length > 0) {
-            setError("安全なルートが見つかりませんでした。一番安全な道を表示します。");
-          }
-          setLoading(false);
-        }
-      } else {
-        setError(res.error || "ルート取得失敗");
-        setLoading(false);
-      }
-    };
-    search();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPos, nearestShelter, user]);
+    apiFetch("/evacuation-route", {
+      method: "POST",
+      body: JSON.stringify({
+        current_pos: { lat: currentPos[0], lon: currentPos[1] },
+        evacuation_level: user.evacuation_level,
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("避難ルート取得失敗");
+        const data = await res.json();
+        setNearestShelter(data.nearest_shelter);
+        setRouteData(data.route);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [currentPos, user]);
 
   // ナビ用: 現在地をwatchPositionで定期更新
   useEffect(() => {
@@ -129,52 +81,53 @@ export default function EvacuationSimulationPage() {
     };
   }, []);
 
-  // ナビ用: 進行方向ガイド（次の経路点までの距離・方角）
-  const [nextInfo, setNextInfo] = useState<{ dist: number; bearing: number } | null>(null);
-  useEffect(() => {
-    if (!routeData || !currentPos) return;
-    // shapeをデコードして最も近い点を探す
-    const decodePolyline = (encoded: string): [number, number][] => {
-      // 簡易デコード（utils/polyline参照）
-      // ここでは既存のdecodePolyline関数を使う想定
-      try {
-        const { decodePolyline } = require("@/utils/polyline");
-        return decodePolyline(encoded);
-      } catch {
-        return [];
-      }
-    };
-    const shape = routeData.trip?.legs?.[0]?.shape;
-    if (!shape) return;
-    const points: [number, number][] = decodePolyline(shape);
-    if (points.length === 0) return;
-    // 現在地から最も近いshape上の点を探す
+  // ナビ用: maneuversから音声案内テキストを抽出
+  const maneuvers: any[] =
+    routeData?.trip?.legs?.[0]?.maneuvers ?? [];
+  const shape: [number, number][] = routeData?.trip?.legs?.[0]?.shape
+    ? decodePolyline(routeData.trip.legs[0].shape)
+    : [];
+
+  let nextInstruction = "";
+  if (currentPos && maneuvers.length > 0 && shape.length > 0) {
+    // 現在地に最も近いshape indexを探す
     let minDist = Infinity, minIdx = 0;
-    points.forEach((p, i) => {
+    shape.forEach((p, i) => {
       const d = Math.sqrt(Math.pow(currentPos[0] - p[0], 2) + Math.pow(currentPos[1] - p[1], 2));
       if (d < minDist) {
         minDist = d;
         minIdx = i;
       }
     });
-    // 次の経路点
-    const nextIdx = Math.min(minIdx + 1, points.length - 1);
-    const next = points[nextIdx];
-    // 距離と方角
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
-    const toDeg = (rad: number) => (rad * 180) / Math.PI;
-    const lat1 = toRad(currentPos[0]), lon1 = toRad(currentPos[1]);
-    const lat2 = toRad(next[0]), lon2 = toRad(next[1]);
-    const dLat = lat2 - lat1, dLon = lon2 - lon1;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const R = 6371; // km
-    const dist = R * c * 1000; // m
-    const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
-    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
-    const bearing = (toDeg(Math.atan2(y, x)) + 360) % 360;
-    setNextInfo({ dist, bearing });
-  }, [routeData, currentPos]);
+    // そのshape indexを含むmaneuverを探す
+    const maneuver = maneuvers.find(
+      m => minIdx >= m.begin_shape_index && minIdx <= m.end_shape_index
+    );
+    if (maneuver) {
+      nextInstruction =
+        maneuver.verbal_post_transition_instruction ||
+        maneuver.verbal_pre_transition_instruction ||
+        maneuver.instruction;
+    }
+  }
+
+  let highlightSegment: [number, number][] = [];
+  if (currentPos && maneuvers.length > 0 && shape.length > 0) {
+    let minDist = Infinity, minIdx = 0;
+    shape.forEach((p, i) => {
+      const d = Math.sqrt(Math.pow(currentPos[0] - p[0], 2) + Math.pow(currentPos[1] - p[1], 2));
+      if (d < minDist) {
+        minDist = d;
+        minIdx = i;
+      }
+    });
+    const maneuver = maneuvers.find(
+      m => minIdx >= m.begin_shape_index && minIdx <= m.end_shape_index
+    );
+    if (maneuver) {
+      highlightSegment = shape.slice(maneuver.begin_shape_index, maneuver.end_shape_index + 1);
+    }
+  }
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-8">
@@ -191,14 +144,14 @@ export default function EvacuationSimulationPage() {
           onMapClick={() => {}}
           height="384px"
           currentPosition={currentPos}
+          highlightSegment={highlightSegment}
         />
       </div>
-      {/* ナビ進行方向ガイド */}
-      {nextInfo && (
-        <div className="mb-4 text-center text-blue-700 font-bold">
-          次の経路点まで: {nextInfo.dist.toFixed(0)}m / 方角: {nextInfo.bearing.toFixed(0)}°
-        </div>
-      )}
+      {/* ナビ案内（次の1件だけ） */}
+      <div className="mb-4 w-full max-w-xl">
+        <h3 className="font-bold mb-2">ナビ案内</h3>
+        <div className="text-lg">{nextInstruction || "ルート上にいません"}</div>
+      </div>
     </main>
   );
 } 

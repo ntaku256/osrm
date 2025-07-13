@@ -72,6 +72,7 @@ Resources:
                   - Fn::Sub: ${ShelterFunction.Arn}
                   - Fn::Sub: ${UserFunction.Arn}
                   - Fn::Sub: ${WalkedRouteFunction.Arn}
+                  - Fn::Sub: ${EvacuationRouteFunction.Arn}
   FunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -104,6 +105,7 @@ Resources:
                   - !GetAtt ShelterTable.Arn
                   - !GetAtt UserTable.Arn
                   - !GetAtt WalkedRoutesTable.Arn
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ENV}-walked-routes-table/index/user_id-index"
               - Effect: Allow
                 Action:
                   - s3:PutObject
@@ -181,12 +183,24 @@ Resources:
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
+        - AttributeName: user_id
+          AttributeType: S
       KeySchema:
         - AttributeName: id
           KeyType: HASH
       ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 5
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      GlobalSecondaryIndexes:
+        - IndexName: user_id-index
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 2
+            WriteCapacityUnits: 2
 
   # Lambda
   ObstacleFunction:
@@ -217,6 +231,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "${ENV}-osrm-WalkedRouteFunction"
+      Role: !GetAtt FunctionRole.Arn
+    Metadata:
+      BuildMethod: makefile
+
+  EvacuationRouteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ENV}-osrm-EvacuationRouteFunction"
       Role: !GetAtt FunctionRole.Arn
     Metadata:
       BuildMethod: makefile
@@ -280,3 +302,9 @@ Outputs:
   WalkedRouteFunction:
     Description: "WalkedRouteFunction ARN"
     Value: !GetAtt WalkedRouteFunction.Arn
+  EvacuationRouteAPI:
+    Description: "API Gateway endpoint URL for EvacuationRoute API"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/evacuation-routes"
+  EvacuationRouteFunction:
+    Description: "EvacuationRouteFunction ARN"
+    Value: !GetAtt EvacuationRouteFunction.Arn

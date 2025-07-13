@@ -13,6 +13,19 @@ export default function WalkPage() {
   const [error, setError] = useState<string>("");
   const watchIdRef = useRef<number | null>(null);
 
+  // 直前の点と10m未満なら追加しない距離計算関数
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const calcDistance = (a: [number, number], b: [number, number]) => {
+    const R = 6371000; // 地球半径[m]
+    const dLat = toRad(b[0] - a[0]);
+    const dLon = toRad(b[1] - a[1]);
+    const lat1 = toRad(a[0]);
+    const lat2 = toRad(b[0]);
+    const aVal = Math.sin(dLat/2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
+    return R * c;
+  };
+
   // 記録開始
   const startRecording = () => {
     setTracePoints([]);
@@ -24,7 +37,13 @@ export default function WalkPage() {
     if (navigator.geolocation) {
       watchIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
-          setTracePoints((prev) => [...prev, [pos.coords.latitude, pos.coords.longitude]]);
+          setTracePoints((prev) => {
+            const next: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+            if (prev.length === 0) return [next];
+            const last = prev[prev.length - 1];
+            if (calcDistance(last, next) < 10) return prev; // 10m未満なら追加しない
+            return [...prev, next];
+          });
         },
         (err) => {
           setError("位置情報の取得に失敗しました: " + err.message);

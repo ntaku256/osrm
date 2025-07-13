@@ -28,6 +28,7 @@ export default function AppHeader() {
                 <Link href="/shelter" className="text-lg font-semibold text-black rounded hover:bg-blue-100 px-2 py-1 transition" onClick={() => setOpen(false)}>避難所</Link>
                 <Link href="/route" className="text-lg font-semibold text-black rounded hover:bg-blue-100 px-2 py-1 transition" onClick={() => setOpen(false)}>ルート検索</Link>
                 <Link href="/walk" className="text-lg font-semibold text-black rounded hover:bg-blue-100 px-2 py-1 transition" onClick={() => setOpen(false)}>ルート記録</Link>
+                <Link href="/record" className="text-lg font-semibold text-black rounded hover:bg-blue-100 px-2 py-1 transition" onClick={() => setOpen(false)}>ルート履歴</Link>
                 <Link href="/evacuation-simulation" className="text-lg font-semibold text-black rounded hover:bg-blue-100 px-2 py-1 transition" onClick={() => setOpen(false)}>避難シミュレーション</Link>
               </nav>
               <div className="border-t my-3" />
@@ -57,6 +58,7 @@ export default function AppHeader() {
         <Link href="/shelter">避難所</Link>
         <Link href="/route">ルート検索</Link>
         <Link href="/walk">ルート記録</Link>
+        <Link href="/record">ルート履歴</Link>
         <Link href="/evacuation-simulation">避難シミュレーション</Link>
       </nav>
       <div className="hidden sm:block relative">

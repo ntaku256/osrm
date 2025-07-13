@@ -1078,11 +1078,15 @@ paths:
               properties:
                 trace_points:
                   type: array
-                  items:
-                    type: array
-                    items:
-                      type: number
                   minItems: 2
+                  items:
+                    type: object
+                    properties:
+                      lat:
+                        type: number
+                      lon:
+                        type: number
+                    required: [lat, lon]
                 start_time:
                   type: string
                   format: date-time
@@ -1099,6 +1103,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WalkedRoute"
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WalkedRouteFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    get:
+      summary: "自身のGPS記録ルート一覧取得"
+      tags:
+        - WalkedRoute
+      security:
+        - firebase: []
+      responses:
+        "200":
+          description: "自身の記録一覧"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WalkedRoute"
       x-amazon-apigateway-integration:
         credentials:
           Fn::Sub: ${ApiRole.Arn}
@@ -1137,502 +1164,586 @@ paths:
               method.response.header.Access-Control-Allow-Origin: "'*'"
             responseTemplates:
               application/json: "{}"
+  /evacuation-route:
+    post:
+      summary: "避難シミュレーション（最寄り避難所＋最適ルート）"
+      tags:
+        - Evacuation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                current_pos:
+                  type: object
+                  properties:
+                    lat:
+                      type: number
+                    lon:
+                      type: number
+                  required: [lat, lon]
+                evacuation_level:
+                  type: integer
+              required: [current_pos, evacuation_level]
+      responses:
+        "200":
+          description: "最寄り避難所・最適ルート情報"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nearest_shelter:
+                    $ref: "#/components/schemas/Shelter"
+                  route:
+                    type: object
+                required: [nearest_shelter, route]
+      x-amazon-apigateway-integration:
+        credentials:
+          Fn::Sub: ${ApiRole.Arn}
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${EvacuationRouteFunction.Arn}/invocations
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws_proxy
+    options:
+      summary: CORS support
+      tags:
+        - Evacuation
+      responses:
+        "200":
+          description: CORS support
+          headers:
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          "200":
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST,GET'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
 components:
-  schemas:
-    Error:
-      type: object
-      properties:
-        status_code:
-          type: integer
-        message:
-          type: string
-        errors:
-          type: object
-          additionalProperties:
-            type: array
-            items:
-              type: string
-      required:
-        - status_code
-        - message
-    ObstacleType:
-      type: integer
-      enum: [0, 1, 2, 3, 4, 5]
-      description: |
-        Enum representing different types of obstacles:
-        * 0 - BLOCK_WALL
-        * 1 - VENDING_MACHINE
-        * 2 - STAIRS
-        * 3 - STEEP_SLOPES
-        * 4 - NARROW_ROADS
-        * 5 - OTHER
-    DangerLevel:
-      type: integer
-      enum: [0, 1, 2]
-      description: |
-        Enum representing different danger levels:
-        * 0 - LOW
-        * 1 - MEDIUM
-        * 2 - HIGH
-    Obstacle:
-      type: object
-      properties:
-        id:
-          type: integer
-        position:
-          type: array
-          items:
-            type: number
-          description: "[latitude, longitude]"
-          minItems: 2
-          maxItems: 2
-        type:
-          $ref: "#/components/schemas/ObstacleType"
-        description:
-          type: string
-        dangerLevel:
-          $ref: "#/components/schemas/DangerLevel"
-        nodes:
-          type: array
-          items:
-            type: number
-          description: "[latitude, longitude]"
-          minItems: 2
-          maxItems: 2
-        nearestDistance:
-          type: number
-        noNearbyRoad:
-          type: boolean
-        createdAt:
-          type: string
-          format: date-time
-        user_id:
-          type: string
-          description: "作成ユーザーのFirebase UID"
-      required:
-        - position
-        - type
-        - description
-        - dangerLevel
-        - createdAt
-        - user_id
-    CreateObstacleRequest:
-      type: object
-      properties:
-        position:
-          type: array
-          items:
-            type: number
-          description: "[latitude, longitude]"
-          minItems: 2
-          maxItems: 2
-        type:
-          $ref: "#/components/schemas/ObstacleType"
-        description:
-          type: string
-        dangerLevel:
-          $ref: "#/components/schemas/DangerLevel"
-        nodes:
-          type: array
-          items:
-            type: number
-          description: "[latitude, longitude]"
-          minItems: 2
-          maxItems: 2
-        nearestDistance:
-          type: number
-        noNearbyRoad:
-          type: boolean
-      required:
-        - position
-        - type
-        - dangerLevel
-    UpdateObstacleRequest:
-      type: object
-      properties:
-        position:
-          type: array
-          items:
-            type: number
-          description: "[latitude, longitude]"
-          minItems: 2
-          maxItems: 2
-        type:
-          $ref: "#/components/schemas/ObstacleType"
-        description:
-          type: string
-        dangerLevel:
-          $ref: "#/components/schemas/DangerLevel"
-        nodes:
-          type: array
-          items:
-            type: number
-          description: "[latitude, longitude]"
-          minItems: 2
-          maxItems: 2
-        nearestDistance:
-          type: number
-        noNearbyRoad:
-          type: boolean
-      required:
-        - position
-        - type
-        - dangerLevel
-    ListObstacleResponse:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/Obstacle"
-    RouteWithObstaclesRequest:
-      type: object
-      properties:
-        locations:
-          type: array
-          items:
+    schemas:
+      Error:
+        type: object
+        properties:
+          status_code:
+            type: integer
+          message:
+            type: string
+          errors:
             type: object
-            properties:
-              lat:
-                type: number
-              lon:
-                type: number
-            required:
-              - lat
-              - lon
-          minItems: 2
-        waypoints:
-          type: array
-          items:
-            type: object
-            properties:
-              lat:
-                type: number
-              lon:
-                type: number
-            required:
-              - lat
-              - lon
-          description: "中継地点のリスト"
-        exclude_locations:
-          type: array
-          items:
-            type: object
-            properties:
-              lat:
-                type: number
-              lon:
-                type: number
-            required:
-              - lat
-              - lon
-          description: "回避地点のリスト"
-        language:
-          type: string
-          default: "ja-JP"
-        costing:
-          type: string
-          default: "auto"
-        detection_method:
-          type: string
-          enum: ["nodes", "distance", "both"]
-          default: "distance"
-          description: "障害物検出方法: nodes(ノード一致), distance(距離判定), both(両方)"
-        distance_threshold:
-          type: number
-          default: 0.5
-          minimum: 0.1
-          maximum: 10.0
-          description: "距離判定の閾値（キロメートル）"
-      required:
-        - locations
-    ValhallaRouteResponse:
-      type: object
-      properties:
-        trip:
-          $ref: "#/components/schemas/Trip"
-        alternates:
-          type: array
-          items:
-            type: object
-            properties:
-              trip:
-                $ref: "#/components/schemas/Trip"
-        admins:
-          type: array
-          items:
-            type: object
-        units:
-          type: string
-        language:
-          type: string
-    Trip:
-      type: object
-      properties:
-        locations:
-          type: array
-          items:
-            type: object
-        legs:
-          type: array
-          items:
-            type: object
-        summary:
-          type: object
-        status_message:
-          type: string
-        status:
-          type: integer
-        units:
-          type: string
-        language:
-          type: string
-        obstacles:
-          type: array
-          items:
-            $ref: "#/components/schemas/Obstacle"
-    Empty:
-      type: object
-    TsunamiSafetyLevel:
-      type: integer
-      enum: [1, 2, 3, 4, 5]
-      description: |
-        Enum representing different tsunami safety levels:
-        * 1 - VERY_LOW
-        * 2 - LOW
-        * 3 - MEDIUM
-        * 4 - HIGH
-        * 5 - VERY_HIGH
-    Shelter:
-      type: object
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        lat:
-          type: number
-          description: "Latitude"
-        lon:
-          type: number
-          description: "Longitude"
-        address:
-          type: string
-        elevation:
-          type: number
-          description: "Elevation in meters"
-        tsunami_safety_level:
-          $ref: "#/components/schemas/TsunamiSafetyLevel"
-        created_at:
-          type: string
-          format: date-time
-        user_id:
-          type: string
-          description: "作成ユーザーのFirebase UID"
-      required:
-        - id
-        - name
-        - lat
-        - lon
-        - address
-        - elevation
-        - tsunami_safety_level
-        - created_at
-        - user_id
-    CreateShelterRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        lat:
-          type: number
-          description: "Latitude"
-        lon:
-          type: number
-          description: "Longitude"
-        address:
-          type: string
-        elevation:
-          type: number
-          description: "Elevation in meters"
-        tsunami_safety_level:
-          $ref: "#/components/schemas/TsunamiSafetyLevel"
-      required:
-        - name
-        - lat
-        - lon
-        - address
-        - elevation
-        - tsunami_safety_level
-    UpdateShelterRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        lat:
-          type: number
-          description: "Latitude"
-        lon:
-          type: number
-          description: "Longitude"
-        address:
-          type: string
-        elevation:
-          type: number
-          description: "Elevation in meters"
-        tsunami_safety_level:
-          $ref: "#/components/schemas/TsunamiSafetyLevel"
-      required:
-        - name
-        - lat
-        - lon
-        - address
-        - elevation
-        - tsunami_safety_level
-    ListShelterResponse:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/Shelter"
-    EvacuationLevel:
-      type: integer
-      enum: [1, 2, 3, 4, 5]
-      description: |
-        Enum representing different evacuation ability levels:
-        * 1 - VERY_LOW (要介護レベル)
-        * 2 - LOW (歩行困難)
-        * 3 - MEDIUM (標準的な避難能力)
-        * 4 - HIGH (健康で機敏)
-        * 5 - VERY_HIGH (専門的な避難支援能力あり)
-    User:
-      type: object
-      properties:
-        firebase_uid:
-          type: string
-        username:
-          type: string
-        age:
-          type: integer
-          minimum: 1
-          maximum: 120
-        gender:
-          type: string
-          enum: ["male", "female", "other"]
-        has_disability:
-          type: boolean
-        evacuation_level:
-          $ref: "#/components/schemas/EvacuationLevel"
-        is_firebase_deleted:
-          type: boolean
-          description: "Firebase認証データが削除されているかどうか"
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-        role:
-          type: string
-          enum: [admin, editor, none]
-          default: none
-          description: "ユーザー権限"
-      required:
-        - firebase_uid
-        - username
-        - age
-        - gender
-        - has_disability
-        - evacuation_level
-        - is_firebase_deleted
-        - created_at
-        - updated_at
-        - role
-    CreateUserRequest:
-      type: object
-      properties:
-        username:
-          type: string
-        age:
-          type: integer
-          minimum: 1
-          maximum: 120
-        gender:
-          type: string
-          enum: ["male", "female", "other"]
-        has_disability:
-          type: boolean
-        evacuation_level:
-          $ref: "#/components/schemas/EvacuationLevel"
-      required:
-        - username
-        - age
-        - gender
-        - evacuation_level
-    UpdateUserRequest:
-      type: object
-      properties:
-        username:
-          type: string
-        age:
-          type: integer
-          minimum: 1
-          maximum: 120
-        gender:
-          type: string
-          enum: ["male", "female", "other"]
-        has_disability:
-          type: boolean
-        evacuation_level:
-          $ref: "#/components/schemas/EvacuationLevel"
-      required:
-        - username
-        - age
-        - gender
-        - evacuation_level
-    WalkedRoute:
-      type: object
-      properties:
-        id:
-          type: string
-        user_id:
-          type: string
-        shape:
-          type: string
-        obstacles:
-          type: array
-          items:
-            type: object
-        route_summary:
-          type: object
-        start_time:
-          type: string
-          format: date-time
-        end_time:
-          type: string
-          format: date-time
-        duration:
-          type: integer
-        distance:
-          type: number
-        trace_raw:
-          type: array
-          items:
+            additionalProperties:
+              type: array
+              items:
+                type: string
+        required:
+          - status_code
+          - message
+      ObstacleType:
+        type: integer
+        enum: [0, 1, 2, 3, 4, 5]
+        description: |
+          Enum representing different types of obstacles:
+          * 0 - BLOCK_WALL
+          * 1 - VENDING_MACHINE
+          * 2 - STAIRS
+          * 3 - STEEP_SLOPES
+          * 4 - NARROW_ROADS
+          * 5 - OTHER
+      DangerLevel:
+        type: integer
+        enum: [0, 1, 2]
+        description: |
+          Enum representing different danger levels:
+          * 0 - LOW
+          * 1 - MEDIUM
+          * 2 - HIGH
+      Obstacle:
+        type: object
+        properties:
+          id:
+            type: integer
+          position:
             type: array
             items:
               type: number
-        title:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-  securitySchemes:
-    firebase:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: Firebase ID Token
+            description: "[latitude, longitude]"
+            minItems: 2
+            maxItems: 2
+          type:
+            $ref: "#/components/schemas/ObstacleType"
+          description:
+            type: string
+          dangerLevel:
+            $ref: "#/components/schemas/DangerLevel"
+          nodes:
+            type: array
+            items:
+              type: number
+            description: "[latitude, longitude]"
+            minItems: 2
+            maxItems: 2
+          nearestDistance:
+            type: number
+          noNearbyRoad:
+            type: boolean
+          createdAt:
+            type: string
+            format: date-time
+          user_id:
+            type: string
+            description: "作成ユーザーのFirebase UID"
+        required:
+          - position
+          - type
+          - description
+          - dangerLevel
+          - createdAt
+          - user_id
+      CreateObstacleRequest:
+        type: object
+        properties:
+          position:
+            type: array
+            items:
+              type: number
+            description: "[latitude, longitude]"
+            minItems: 2
+            maxItems: 2
+          type:
+            $ref: "#/components/schemas/ObstacleType"
+          description:
+            type: string
+          dangerLevel:
+            $ref: "#/components/schemas/DangerLevel"
+          nodes:
+            type: array
+            items:
+              type: number
+            description: "[latitude, longitude]"
+            minItems: 2
+            maxItems: 2
+          nearestDistance:
+            type: number
+          noNearbyRoad:
+            type: boolean
+        required:
+          - position
+          - type
+          - dangerLevel
+      UpdateObstacleRequest:
+        type: object
+        properties:
+          position:
+            type: array
+            items:
+              type: number
+            description: "[latitude, longitude]"
+            minItems: 2
+            maxItems: 2
+          type:
+            $ref: "#/components/schemas/ObstacleType"
+          description:
+            type: string
+          dangerLevel:
+            $ref: "#/components/schemas/DangerLevel"
+          nodes:
+            type: array
+            items:
+              type: number
+            description: "[latitude, longitude]"
+            minItems: 2
+            maxItems: 2
+          nearestDistance:
+            type: number
+          noNearbyRoad:
+            type: boolean
+        required:
+          - position
+          - type
+          - dangerLevel
+      ListObstacleResponse:
+        type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/Obstacle"
+      RouteWithObstaclesRequest:
+        type: object
+        properties:
+          locations:
+            type: array
+            items:
+              type: object
+              properties:
+                lat:
+                  type: number
+                lon:
+                  type: number
+              required:
+                - lat
+                - lon
+            minItems: 2
+          waypoints:
+            type: array
+            items:
+              type: object
+              properties:
+                lat:
+                  type: number
+                lon:
+                  type: number
+              required:
+                - lat
+                - lon
+              description: "中継地点のリスト"
+          exclude_locations:
+            type: array
+            items:
+              type: object
+              properties:
+                lat:
+                  type: number
+                lon:
+                  type: number
+              required:
+                - lat
+                - lon
+              description: "回避地点のリスト"
+          language:
+            type: string
+            default: "ja-JP"
+          costing:
+            type: string
+            default: "auto"
+          detection_method:
+            type: string
+            enum: ["nodes", "distance", "both"]
+            default: "distance"
+            description: "障害物検出方法: nodes(ノード一致), distance(距離判定), both(両方)"
+          distance_threshold:
+            type: number
+            default: 0.5
+            minimum: 0.1
+            maximum: 10.0
+            description: "距離判定の閾値（キロメートル）"
+        required:
+          - locations
+      ValhallaRouteResponse:
+        type: object
+        properties:
+          trip:
+            $ref: "#/components/schemas/Trip"
+          alternates:
+            type: array
+            items:
+              type: object
+              properties:
+                trip:
+                  $ref: "#/components/schemas/Trip"
+          admins:
+            type: array
+            items:
+              type: object
+          units:
+            type: string
+          language:
+            type: string
+      Trip:
+        type: object
+        properties:
+          locations:
+            type: array
+            items:
+              type: object
+          legs:
+            type: array
+            items:
+              type: object
+          summary:
+            type: object
+          status_message:
+            type: string
+          status:
+            type: integer
+          units:
+            type: string
+          language:
+            type: string
+          obstacles:
+            type: array
+            items:
+              $ref: "#/components/schemas/Obstacle"
+      Empty:
+        type: object
+      TsunamiSafetyLevel:
+        type: integer
+        enum: [1, 2, 3, 4, 5]
+        description: |
+          Enum representing different tsunami safety levels:
+          * 1 - VERY_LOW
+          * 2 - LOW
+          * 3 - MEDIUM
+          * 4 - HIGH
+          * 5 - VERY_HIGH
+      Shelter:
+        type: object
+        properties:
+          id:
+            type: integer
+          name:
+            type: string
+          lat:
+            type: number
+            description: "Latitude"
+          lon:
+            type: number
+            description: "Longitude"
+          address:
+            type: string
+          elevation:
+            type: number
+            description: "Elevation in meters"
+          tsunami_safety_level:
+            $ref: "#/components/schemas/TsunamiSafetyLevel"
+          created_at:
+            type: string
+            format: date-time
+          user_id:
+            type: string
+            description: "作成ユーザーのFirebase UID"
+        required:
+          - id
+          - name
+          - lat
+          - lon
+          - address
+          - elevation
+          - tsunami_safety_level
+          - created_at
+          - user_id
+      CreateShelterRequest:
+        type: object
+        properties:
+          name:
+            type: string
+          lat:
+            type: number
+            description: "Latitude"
+          lon:
+            type: number
+            description: "Longitude"
+          address:
+            type: string
+          elevation:
+            type: number
+            description: "Elevation in meters"
+          tsunami_safety_level:
+            $ref: "#/components/schemas/TsunamiSafetyLevel"
+        required:
+          - name
+          - lat
+          - lon
+          - address
+          - elevation
+          - tsunami_safety_level
+      UpdateShelterRequest:
+        type: object
+        properties:
+          name:
+            type: string
+          lat:
+            type: number
+            description: "Latitude"
+          lon:
+            type: number
+            description: "Longitude"
+          address:
+            type: string
+          elevation:
+            type: number
+            description: "Elevation in meters"
+          tsunami_safety_level:
+            $ref: "#/components/schemas/TsunamiSafetyLevel"
+        required:
+          - name
+          - lat
+          - lon
+          - address
+          - elevation
+          - tsunami_safety_level
+      ListShelterResponse:
+        type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/Shelter"
+      EvacuationLevel:
+        type: integer
+        enum: [1, 2, 3, 4, 5]
+        description: |
+          Enum representing different evacuation ability levels:
+          * 1 - VERY_LOW (要介護レベル)
+          * 2 - LOW (歩行困難)
+          * 3 - MEDIUM (標準的な避難能力)
+          * 4 - HIGH (健康で機敏)
+          * 5 - VERY_HIGH (専門的な避難支援能力あり)
+      User:
+        type: object
+        properties:
+          firebase_uid:
+            type: string
+          username:
+            type: string
+          age:
+            type: integer
+            minimum: 1
+            maximum: 120
+          gender:
+            type: string
+            enum: ["male", "female", "other"]
+          has_disability:
+            type: boolean
+          evacuation_level:
+            $ref: "#/components/schemas/EvacuationLevel"
+          is_firebase_deleted:
+            type: boolean
+            description: "Firebase認証データが削除されているかどうか"
+          created_at:
+            type: string
+            format: date-time
+          updated_at:
+            type: string
+            format: date-time
+          role:
+            type: string
+            enum: [admin, editor, none]
+            default: none
+            description: "ユーザー権限"
+        required:
+          - firebase_uid
+          - username
+          - age
+          - gender
+          - has_disability
+          - evacuation_level
+          - is_firebase_deleted
+          - created_at
+          - updated_at
+          - role
+      CreateUserRequest:
+        type: object
+        properties:
+          username:
+            type: string
+          age:
+            type: integer
+            minimum: 1
+            maximum: 120
+          gender:
+            type: string
+            enum: ["male", "female", "other"]
+          has_disability:
+            type: boolean
+          evacuation_level:
+            $ref: "#/components/schemas/EvacuationLevel"
+        required:
+          - username
+          - age
+          - gender
+          - evacuation_level
+      UpdateUserRequest:
+        type: object
+        properties:
+          username:
+            type: string
+          age:
+            type: integer
+            minimum: 1
+            maximum: 120
+          gender:
+            type: string
+            enum: ["male", "female", "other"]
+          has_disability:
+            type: boolean
+          evacuation_level:
+            $ref: "#/components/schemas/EvacuationLevel"
+        required:
+          - username
+          - age
+          - gender
+          - evacuation_level
+      WalkedRoute:
+        type: object
+        properties:
+          id:
+            type: string
+          user_id:
+            type: string
+          shape:
+            type: string
+          obstacles:
+            type: array
+            items:
+              type: object
+          route_summary:
+            type: object
+          start_time:
+            type: string
+            format: date-time
+          end_time:
+            type: string
+            format: date-time
+          duration:
+            type: integer
+          distance:
+            type: number
+          trace_raw:
+            type: array
+            items:
+              type: array
+              items:
+                type: number
+          title:
+            type: string
+          created_at:
+            type: string
+            format: date-time
+          updated_at:
+            type: string
+            format: date-time
+      EvacuationRouteResponse:
+        type: object
+        properties:
+          nearest_shelter:
+            $ref: "#/components/schemas/Shelter"
+          route:
+            type: object
+        required:
+          - nearest_shelter
+          - route
+    securitySchemes:
+      firebase:
+        type: http
+        scheme: bearer
+        bearerFormat: JWT
+        description: Firebase ID Token

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { MapPin, Navigation, AlertTriangle, ArrowLeft, Settings, MapPinned, Play, Square, Save, Trash2 } from "lucide-react"
+import { MapPin, Navigation, AlertTriangle, ArrowLeft, Settings, MapPinned } from "lucide-react"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import { routeApi } from "@/utils/api"
@@ -52,72 +52,10 @@ export default function RoutePage() {
   const [isGettingLocation, setIsGettingLocation] = useState(false)
   const [gpsError, setGpsError] = useState<string | null>(null)
 
-  // 移動記録関連の状態
-  const [isRecording, setIsRecording] = useState(false)
-  const [trackPoints, setTrackPoints] = useState<TrackPoint[]>([])
-  const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null)
-  const watchIdRef = useRef<number | null>(null)
-
   // コンポーネント初期化時にGPS対応チェック
   useEffect(() => {
     setIsGpsSupported('geolocation' in navigator)
   }, [])
-
-  // 移動記録の開始/停止
-  useEffect(() => {
-    if (isRecording && isGpsSupported) {
-      const options: PositionOptions = {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 5000
-      }
-
-      const handleSuccess = (position: GeolocationPosition) => {
-        const newPoint: TrackPoint = {
-          lat: position.coords.latitude,
-          lon: position.coords.longitude,
-          timestamp: Date.now(),
-          accuracy: position.coords.accuracy
-        }
-
-        setTrackPoints(prev => [...prev, newPoint])
-        setCurrentPosition([position.coords.latitude, position.coords.longitude])
-        setGpsError(null)
-      }
-
-      const handleError = (error: GeolocationPositionError) => {
-        console.error('GPS tracking error:', error)
-        setGpsError(`位置情報の取得に失敗しました: ${error.message}`)
-      }
-
-      // 位置情報の監視を開始
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        handleSuccess,
-        handleError,
-        options
-      )
-
-      return () => {
-        if (watchIdRef.current !== null) {
-          navigator.geolocation.clearWatch(watchIdRef.current)
-          watchIdRef.current = null
-        }
-      }
-    } else {
-      // 記録停止時は監視をクリア
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current)
-        watchIdRef.current = null
-      }
-    }
-  }, [isRecording, isGpsSupported])
-
-  // 障害物検出方法の選択肢
-  const detectionMethodOptions = [
-    { value: 'distance' as ObstacleDetectionMethod, label: '距離判定のみ' },
-    { value: 'nodes' as ObstacleDetectionMethod, label: 'ノード一致のみ' },
-    { value: 'both' as ObstacleDetectionMethod, label: '両方' }
-  ]
 
   // 現在位置を取得してスタート地点に設定
   const getCurrentLocation = () => {
@@ -140,7 +78,6 @@ export default function RoutePage() {
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude]
         setStartPosition(coords)
         setStartInput(`${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}`)
-        setCurrentPosition(coords)
         setIsGettingLocation(false)
         setGpsError(null)
       },
@@ -167,78 +104,30 @@ export default function RoutePage() {
     )
   }
 
-  // 移動記録の開始
-  const startRecording = () => {
-    if (!isGpsSupported) {
-      setGpsError('このブラウザはGPS機能に対応していません')
-      return
-    }
+  // 障害物検出方法の選択肢
+  const detectionMethodOptions = [
+    { value: 'distance' as ObstacleDetectionMethod, label: '距離判定のみ' },
+    { value: 'nodes' as ObstacleDetectionMethod, label: 'ノード一致のみ' },
+    { value: 'both' as ObstacleDetectionMethod, label: '両方' }
+  ]
 
-    setTrackPoints([])
-    setIsRecording(true)
-    setGpsError(null)
-  }
-
-  // 移動記録の停止
-  const stopRecording = () => {
-    setIsRecording(false)
-  }
-
-  // 移動記録のクリア
-  const clearTrack = () => {
-    setTrackPoints([])
-    setCurrentPosition(null)
-    setIsRecording(false)
-  }
-
-  // 移動記録の保存（将来的にバックエンドに送信する予定）
-  const saveTrack = () => {
-    if (trackPoints.length === 0) {
-      setError('保存する移動記録がありません')
-      return
-    }
-
-    // 今後、バックエンドAPIに送信する処理を実装
-    console.log('移動記録を保存:', {
-      points: trackPoints,
-      totalPoints: trackPoints.length,
-      duration: trackPoints.length > 0 ? trackPoints[trackPoints.length - 1].timestamp - trackPoints[0].timestamp : 0
-    })
-
-    // 一時的な成功メッセージ
-    alert(`移動記録を保存しました（${trackPoints.length}ポイント）`)
-  }
-
+  // マップクリック時の処理（移動記録機能は含めず、出発・目的・中継・回避地点のみ対応）
   const handleMapClick = (position: [number, number], mode: 'start' | 'end' | 'waypoint' | 'exclude') => {
-    console.log("=== HANDLE MAP CLICK DEBUG ===")
-    console.log("Position:", position)
-    console.log("Mode from map:", mode)
-    console.log("Current clickMode state:", clickMode)
-
     if (mode === 'start') {
-      console.log("✅ Processing START click")
       setStartPosition(position)
       setStartInput(`${position[0].toFixed(6)}, ${position[1].toFixed(6)}`)
       setClickMode(null)
-      console.log("✅ START position set, clickMode reset to null")
     } else if (mode === 'end') {
-      console.log("✅ Processing END click")
       setEndPosition(position)
       setEndInput(`${position[0].toFixed(6)}, ${position[1].toFixed(6)}`)
       setClickMode(null)
-      console.log("✅ END position set, clickMode reset to null")
     } else if (mode === 'waypoint') {
-      console.log("✅ Processing WAYPOINT click")
       setWaypoints(prev => [...prev, position])
       setClickMode(null)
-      console.log("✅ WAYPOINT added, clickMode reset to null")
     } else if (mode === 'exclude') {
-      console.log("✅ Processing EXCLUDE click")
       setExcludeLocations(prev => [...prev, position])
       setClickMode(null)
-      console.log("✅ EXCLUDE location added, clickMode reset to null")
     }
-    console.log("=== END HANDLE MAP CLICK DEBUG ===")
   }
 
   const parseCoordinates = (input: string): [number, number] | null => {
@@ -696,161 +585,42 @@ export default function RoutePage() {
               </CardContent>
             </Card>
 
-            {/* 移動記録パネル */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Navigation className="h-5 w-5" />
-                  移動記録
-                </CardTitle>
-                <CardDescription>
-                  実際の移動経路を記録できます
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* 記録状態表示 */}
-                {isRecording && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-green-700">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      <span className="text-sm font-medium">記録中... ({trackPoints.length}ポイント)</span>
-                    </div>
-                    {currentPosition && (
-                      <div className="text-xs text-green-600 mt-1">
-                        現在位置: {currentPosition[0].toFixed(6)}, {currentPosition[1].toFixed(6)}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 記録情報表示 */}
-                {trackPoints.length > 0 && !isRecording && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <div className="text-sm text-blue-700">
-                      <div>記録ポイント数: {trackPoints.length}</div>
-                      {trackPoints.length > 1 && (
-                        <div>
-                          記録時間: {Math.round((trackPoints[trackPoints.length - 1].timestamp - trackPoints[0].timestamp) / 1000 / 60)}分
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* 記録制御ボタン */}
-                <div className="space-y-2">
-                  {!isRecording ? (
-                    <Button
-                      onClick={startRecording}
-                      disabled={!isGpsSupported}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <Play className="h-4 w-4 mr-2" />
-                      移動記録開始
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={stopRecording}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      <Square className="h-4 w-4 mr-2" />
-                      記録停止
-                    </Button>
-                  )}
-
-                  {trackPoints.length > 0 && (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={saveTrack}
-                        disabled={isRecording}
-                        className="flex-1 border-blue-300 text-blue-700 hover:bg-blue-50"
-                      >
-                        <Save className="h-4 w-4 mr-2" />
-                        保存
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={clearTrack}
-                        disabled={isRecording}
-                        className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        クリア
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {!isGpsSupported && (
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      このブラウザはGPS機能に対応していません
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
-
             {/* 複数ルート選択 */}
-            {routeData && getRouteCount() > 1 && (
+            {/* ルート選択＋詳細（サイドバー統合） */}
+            {routeData && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    🛣️ ルート選択
-                  </CardTitle>
-                  <CardDescription>
-                    {getRouteCount()}つのルートが見つかりました
-                  </CardDescription>
+                  <CardTitle>ルート選択・詳細</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {[...Array(getRouteCount())].map((_, index) => (
-                    <div
-                      key={index}
-                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                        selectedRouteIndex === index
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-blue-300 hover:bg-blue-25'
-                      }`}
-                      onClick={() => setSelectedRouteIndex(index)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  {/* 横並びのルート選択 */}
+                  {getRouteCount() > 1 && (
+                    <div className="flex gap-2 mb-2">
+                      {[...Array(getRouteCount())].map((_, index) => (
+                        <div
+                          key={index}
+                          className={`flex-1 px-3 py-2 rounded-lg border cursor-pointer transition-all flex flex-col items-center min-w-0 ${
+                            selectedRouteIndex === index
+                              ? 'border-blue-500 bg-blue-200'
+                              : 'border-gray-200 hover:border-blue-300 hover:bg-blue-25'
+                          }`}
+                          onClick={() => setSelectedRouteIndex(index)}
+                        >
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${
                             selectedRouteIndex === index ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-700'
                           }`}>
                             {index + 1}
                           </div>
-                          <span className="font-medium text-gray-900">
-                            ルート {index + 1}
-                          </span>
+                          <span className="font-medium text-xs truncate">ルート{index + 1}</span>
+                          {selectedRouteIndex === index && (
+                            <div className="text-blue-500 text-[10px] font-medium mt-1">選択中</div>
+                          )}
                         </div>
-                        {selectedRouteIndex === index && (
-                          <div className="text-blue-500 text-xs font-medium">選択中</div>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 text-xs text-gray-600 mt-2">
-                        <div>
-                          <span className="font-medium">距離:</span> {getRouteSummary(index)?.length?.toFixed(1)}km
-                        </div>
-                        <div>
-                          <span className="font-medium">時間:</span> {Math.round((getRouteSummary(index)?.time || 0) / 60)}分
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+                  )}
 
-            {/* ルート情報表示 */}
-            {routeData && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>ルート詳細</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
+                  {/* ルート詳細は常に表示 */}
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-gray-600">距離</p>
@@ -872,12 +642,13 @@ export default function RoutePage() {
                     </div>
                   </div>
 
+                  {/* 障害物リスト */}
                   {getCurrentTripObstacles().length > 0 && (
                     <div className="border-t pt-3">
                       <p className="text-red-600 font-medium mb-2">
                         ⚠️ 障害物 {getCurrentTripObstacles().length}個検出
                       </p>
-                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                      <div className="space-y-2 max-h-80 overflow-y-auto">
                         {getCurrentTripObstacles().map((obstacle, index) => (
                           <div 
                             key={index} 
@@ -972,9 +743,9 @@ export default function RoutePage() {
                   onMapClick={handleMapClick}
                   onAddToExcludeList={addObstacleToExcludeList}
                   clickMode={clickMode}
-                  currentPosition={currentPosition}
-                  trackPoints={trackPoints.map(point => [point.lat, point.lon] as [number, number])}
-                  isRecording={isRecording}
+                  currentPosition={null} // 移動記録機能が削除されたため、現在位置は表示しない
+                  trackPoints={[]} // 移動記録機能が削除されたため、軌跡は表示しない
+                  isRecording={false} // 移動記録機能が削除されたため、記録状態は表示しない
                   onRouteSelect={setSelectedRouteIndex}
                 />
                 {/* デバッグ用：現在の状態表示

@@ -60,6 +60,10 @@ build-WalkedRouteFunction:
 	go build -tags netgo -o bootstrap ./handler/walked_route
 	cp bootstrap $(ARTIFACTS_DIR)
 
+build-EvacuationRouteFunction:
+	go build -tags netgo -o bootstrap ./handler/evacuation_route
+	cp bootstrap $(ARTIFACTS_DIR)
+
 sam-build-ObstacleFunction:
 	sam build --use-container --cached --parallel ObstacleFunction
 
@@ -71,3 +75,6 @@ sam-build-UserFunction:
 
 sam-build-WalkedRouteFunction:
 	sam build --use-container --cached --parallel WalkedRouteFunction
+
+sam-build-EvacuationRouteFunction:
+	sam build --use-container --cached --parallel EvacuationRouteFunction

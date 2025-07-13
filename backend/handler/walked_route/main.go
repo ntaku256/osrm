@@ -15,13 +15,19 @@ import (
 
 	"webhook/domain/db"
 	"webhook/shared/auth"
+	"webhook/usecase"
 )
 
+type LatLng struct {
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
+}
+
 type WalkedRouteInput struct {
-	TracePoints [][]float64 `json:"trace_points"`
-	StartTime   string      `json:"start_time"`
-	EndTime     string      `json:"end_time"`
-	Title       string      `json:"title"`
+	TracePoints []LatLng `json:"trace_points"`
+	StartTime   string   `json:"start_time"`
+	EndTime     string   `json:"end_time"`
+	Title       string   `json:"title"`
 }
 
 func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
@@ -50,6 +56,32 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	}
 	userID := token.UID
 
+	if request.HTTPMethod == "GET" {
+		output, err := usecase.GetWalkedRoutesByUserID(ctx, usecase.GetWalkedRoutesByUserIDInput{UserID: userID})
+		if err != nil {
+			// 詳細なエラー内容を返す
+			debugInfo := map[string]interface{}{
+				"message": "DB query error",
+				"error":   err.Error(),
+			}
+			debugBody, _ := json.Marshal(debugInfo)
+			return events.APIGatewayProxyResponse{
+				StatusCode: http.StatusInternalServerError,
+				Body:       string(debugBody),
+				Headers:    map[string]string{"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+			}, nil
+		}
+		respBody, _ := json.Marshal(output.Routes)
+		return events.APIGatewayProxyResponse{
+			StatusCode: 200,
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+				"Access-Control-Allow-Origin": "*",
+			},
+			Body: string(respBody),
+		}, nil
+	}
+
 	// 2. リクエストbodyパース
 	var input WalkedRouteInput
 	err = json.Unmarshal([]byte(request.Body), &input)
@@ -69,12 +101,10 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// TracePointsを[{lat, lon}, ...]形式に変換
 	shape := make([]map[string]float64, 0, len(input.TracePoints))
 	for _, pt := range input.TracePoints {
-		if len(pt) == 2 {
-			shape = append(shape, map[string]float64{
-				"lat": pt[0],
-				"lon": pt[1],
-			})
-		}
+		shape = append(shape, map[string]float64{
+			"lat": pt.Lat,
+			"lon": pt.Lon,
+		})
 	}
 	valhallaReq := map[string]interface{}{
 		"shape": shape,
@@ -117,7 +147,7 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	}
 
 	// 4. WalkedRoute構築
-	shape = valhallaResp.Trip.Legs[0].Shape
+	shapeStr := valhallaResp.Trip.Legs[0].Shape
 	summary := valhallaResp.Trip.Summary
 	obstacles := valhallaResp.Trip.Obstacles
 	distance := 0.0
@@ -130,19 +160,31 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			duration = int(v)
 		}
 	}
+	// summary (map[string]interface{}) → db.WalkedRouteSummary
+	var routeSummary db.WalkedRouteSummary
+	summaryBytes, _ := json.Marshal(summary)
+	json.Unmarshal(summaryBytes, &routeSummary)
+	// obstacles (interface{}) → []db.Obstacle
+	var obstaclesArr []db.Obstacle
+	obstaclesBytes, _ := json.Marshal(obstacles)
+	json.Unmarshal(obstaclesBytes, &obstaclesArr)
 	now := time.Now().UTC().Format(time.RFC3339)
 	id := uuid.New().String()
+	traceRaw := make([]db.LatLng, len(input.TracePoints))
+	for i, p := range input.TracePoints {
+		traceRaw[i] = db.LatLng{Lat: p.Lat, Lon: p.Lon}
+	}
 	walkedRoute := db.WalkedRoute{
 		ID:           id,
 		UserID:       userID,
-		Shape:        shape,
-		Obstacles:    obstacles,
-		RouteSummary: summary,
+		Shape:        shapeStr,
+		Obstacles:    obstaclesArr,
+		RouteSummary: &routeSummary,
 		StartTime:    input.StartTime,
 		EndTime:      input.EndTime,
 		Duration:     duration,
 		Distance:     distance,
-		TraceRaw:     input.TracePoints,
+		TraceRaw:     traceRaw, // []db.LatLng
 		Title:        input.Title,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -159,9 +201,15 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	}
 	err = repo.Save(ctx, &walkedRoute)
 	if err != nil {
+		debugInfo := map[string]interface{}{
+			"message": "DB save error",
+			"error":   err.Error(),
+			"item":    walkedRoute,
+		}
+		debugBody, _ := json.Marshal(debugInfo)
 		return events.APIGatewayProxyResponse{
 			StatusCode: http.StatusInternalServerError,
-			Body:       `{"message":"DB save error"}`,
+			Body:       string(debugBody),
 			Headers:    map[string]string{"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
 		}, nil
 	}
