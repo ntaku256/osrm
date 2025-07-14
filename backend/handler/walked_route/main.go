@@ -1,12 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -16,6 +13,8 @@ import (
 	"webhook/domain/db"
 	"webhook/shared/auth"
 	"webhook/usecase"
+	"webhook/usecase/adaptor"
+	inputroute "webhook/usecase/input"
 )
 
 type LatLng struct {
@@ -93,81 +92,49 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		}, nil
 	}
 
-	// 3. Valhalla /trace_route呼び出し
-	valhallaURL := os.Getenv("VALHALLA_URL")
-	if valhallaURL == "" {
-		valhallaURL = "http://133.167.121.88:8080/trace_route"
-	}
-	// TracePointsを[{lat, lon}, ...]形式に変換
-	shape := make([]map[string]float64, 0, len(input.TracePoints))
+	// 3. Valhalla /trace_route呼び出し → usecase.GetRouteWithObstacles呼び出しに変更
+	locations := make([]inputroute.Location, 0, len(input.TracePoints))
 	for _, pt := range input.TracePoints {
-		shape = append(shape, map[string]float64{
-			"lat": pt.Lat,
-			"lon": pt.Lon,
-		})
+		locations = append(locations, inputroute.Location{Lat: pt.Lat, Lon: pt.Lon})
 	}
-	valhallaReq := map[string]interface{}{
-		"shape": shape,
-		"costing": "pedestrian",
+	routeReq := inputroute.RouteWithObstacles{
+		Locations:         locations,
+		Costing:           "pedestrian",
+		DetectionMethod:   inputroute.DetectionMethodBoth,
+		DistanceThreshold: 0.04, // 40m
 	}
-	valhallaBody, _ := json.Marshal(valhallaReq)
-	resp, err := http.Post(valhallaURL, "application/json", bytes.NewBuffer(valhallaBody))
-	if err != nil {
-		return events.APIGatewayProxyResponse{
-			StatusCode: http.StatusBadGateway,
-			Body:       `{"message":"Valhalla error"}`,
-			Headers:    map[string]string{"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
-		}, nil
-	}
-	defer resp.Body.Close()
-	respBytes, _ := ioutil.ReadAll(resp.Body)
-	var valhallaResp struct {
-		Trip struct {
-			Legs []struct {
-				Shape string `json:"shape"`
-			} `json:"legs"`
-			Summary   map[string]interface{} `json:"summary"`
-			Obstacles interface{}           `json:"obstacles"`
-		} `json:"trip"`
-	}
-	err = json.Unmarshal(respBytes, &valhallaResp)
-	if err != nil || len(valhallaResp.Trip.Legs) == 0 {
-		// デバッグ用にリクエスト・レスポンス内容を返す
+	routeResp, status, err := usecase.GetRouteWithObstacles(ctx, routeReq)
+	if err != nil || routeResp == nil || len(routeResp.Trip.Legs) == 0 {
 		debugInfo := map[string]interface{}{
-			"message":      "Valhalla parse error",
-			"valhallaResp": string(respBytes), // 生レスポンス
-			"valhallaReq":  valhallaReq,       // リクエスト内容
+			"message":      "route-with-obstacles error",
+			"error":        err,
+			"routeResp":    routeResp,
+			"routeReq":     routeReq,
 		}
 		debugBody, _ := json.Marshal(debugInfo)
 		return events.APIGatewayProxyResponse{
-			StatusCode: http.StatusBadGateway,
+			StatusCode: status,
 			Body:       string(debugBody),
 			Headers:    map[string]string{"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
 		}, nil
 	}
 
-	// 4. WalkedRoute構築
-	shapeStr := valhallaResp.Trip.Legs[0].Shape
-	summary := valhallaResp.Trip.Summary
-	obstacles := valhallaResp.Trip.Obstacles
-	distance := 0.0
-	duration := 0
-	if summary != nil {
-		if v, ok := summary["length"].(float64); ok {
-			distance = v
-		}
-		if v, ok := summary["time"].(float64); ok {
-			duration = int(v)
+	shapeStr := routeResp.Trip.Legs[0].Shape
+	summary := routeResp.Trip.Summary
+	obstacles := routeResp.Trip.Obstacles
+	distance := summary.Length
+	duration := int(summary.Time)
+	// summary (output.Summary) → db.WalkedRouteSummary
+	summaryBytes, _ := json.Marshal(summary)
+	var routeSummary db.WalkedRouteSummary
+	json.Unmarshal(summaryBytes, &routeSummary)
+	// obstacles ([]output.Obstacle) → []db.Obstacle
+	obstaclesArr := make([]db.Obstacle, 0, len(obstacles))
+	for _, o := range obstacles {
+		if dbObs := adaptor.ToDBObstacle(o); dbObs != nil {
+			obstaclesArr = append(obstaclesArr, *dbObs)
 		}
 	}
-	// summary (map[string]interface{}) → db.WalkedRouteSummary
-	var routeSummary db.WalkedRouteSummary
-	summaryBytes, _ := json.Marshal(summary)
-	json.Unmarshal(summaryBytes, &routeSummary)
-	// obstacles (interface{}) → []db.Obstacle
-	var obstaclesArr []db.Obstacle
-	obstaclesBytes, _ := json.Marshal(obstacles)
-	json.Unmarshal(obstaclesBytes, &obstaclesArr)
 	now := time.Now().UTC().Format(time.RFC3339)
 	id := uuid.New().String()
 	traceRaw := make([]db.LatLng, len(input.TracePoints))

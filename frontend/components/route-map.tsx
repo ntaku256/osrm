@@ -391,11 +391,11 @@ export default function RouteMap({
                </div>
                ${isSelected ? '<p class="text-xs text-yellow-600 font-medium mb-2">📍 選択中の障害物</p>' : ''}
                <p class=\"text-xs text-gray-500 mb-2\">座標: ${obstacle.position[0].toFixed(6)}, ${obstacle.position[1].toFixed(6)}</p>
-               <button 
+               ${onAddToExcludeList ? `<button 
                  id=\"exclude-btn-${obstacle.id}\" 
                  class=\"w-full px-2 py-1 text-xs rounded border transition-colors ${isAlreadyExcluded ? 'bg-green-100 text-green-700 border-green-300 cursor-not-allowed' : 'bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:text-orange-800'}\"${isAlreadyExcluded ? ' disabled' : ''}>
                  ${isAlreadyExcluded ? '回避地点に追加済み' : '回避地点に追加'}
-               </button>
+               </button>` : ''}
              </div>
            `
           const popup = L.popup().setContent(popupContent)
@@ -428,7 +428,7 @@ export default function RouteMap({
     } catch (error) {
       console.error("Failed to display route:", error)
     }
-  }, [mapReady, routeData, selectedObstacle, selectedRouteIndex])
+  }, [mapReady, routeData, selectedObstacle, selectedRouteIndex, excludeLocations, onAddToExcludeList])
 
   // ハイライト区間の描画
   useEffect(() => {

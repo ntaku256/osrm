@@ -2,9 +2,34 @@
 import { useState, useRef } from "react";
 import { apiFetch } from "@/lib/api";
 import dynamic from "next/dynamic";
+import { useBackendUser } from "@/hooks/useBackendUser";
+import { useEffect } from "react";
 const RouteMap = dynamic(() => import("@/components/route-map"), { ssr: false });
 
 export default function WalkPage() {
+  const { user, loading: userLoading } = useBackendUser();
+  const [gpsAvailable, setGpsAvailable] = useState(true);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGpsAvailable(false);
+      setGpsError("このブラウザはGPSに対応していません。");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        setGpsAvailable(true);
+        setGpsError(null);
+      },
+      (err) => {
+        setGpsAvailable(false);
+        if (err.code === 1) setGpsError("位置情報の利用が許可されていません。");
+        else if (err.code === 2) setGpsError("位置情報が取得できません。");
+        else setGpsError("GPS機能が利用できません。");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, []);
   const [recording, setRecording] = useState(false);
   const [tracePoints, setTracePoints] = useState<[number, number][]>([]);
   const [startTime, setStartTime] = useState<string | null>(null);
@@ -41,7 +66,7 @@ export default function WalkPage() {
             const next: [number, number] = [pos.coords.latitude, pos.coords.longitude];
             if (prev.length === 0) return [next];
             const last = prev[prev.length - 1];
-            if (calcDistance(last, next) < 10) return prev; // 10m未満なら追加しない
+            if (calcDistance(last, next) < 50) return prev; // 50m未満なら追加しない
             return [...prev, next];
           });
         },
@@ -86,7 +111,7 @@ export default function WalkPage() {
       if (res.ok) {
         setResult(await res.json());
       } else {
-        setError("保存に失敗しました");
+        setError("保存に失敗しました: " + res.body);
       }
     } catch (e: any) {
       setError("通信エラー: " + e.message);
@@ -96,34 +121,52 @@ export default function WalkPage() {
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-8">
       <h2 className="text-2xl font-bold mb-4">GPS移動記録</h2>
-      <div className="flex gap-4 mb-4">
-        {!recording ? (
-          <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={startRecording}>記録開始</button>
-        ) : (
-          <button className="px-4 py-2 bg-red-600 text-white rounded" onClick={stopRecording}>記録停止</button>
-        )}
-        <button className="px-4 py-2 bg-green-600 text-white rounded" onClick={saveRoute} disabled={recording || tracePoints.length < 2}>保存</button>
-      </div>
-      <div className="mb-2">記録点数: {tracePoints.length}</div>
-      {/* 地図表示: 記録中の軌跡を表示 */}
-      <div className="w-full max-w-xl h-96 mb-4">
-        <RouteMap
-          routeData={null}
-          isLoading={false}
-          startPosition={tracePoints[0] || null}
-          endPosition={tracePoints[tracePoints.length - 1] || null}
-          onMapClick={() => {}}
-          trackPoints={tracePoints}
-          isRecording={recording}
-          height="384px"
-        />
-      </div>
-      {error && <div className="text-red-500 mb-2">{error}</div>}
-      {result && (
-        <div className="bg-gray-100 p-4 rounded mt-4 w-full max-w-xl">
-          <h3 className="font-bold mb-2">保存結果</h3>
-          <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(result, null, 2)}</pre>
+      {userLoading && <div>認証確認中...</div>}
+      {!user && !userLoading && (
+        <div className="bg-red-100 text-red-700 p-4 rounded mb-4">
+          <h2 className="font-bold mb-2">アクセス権限がありません</h2>
+          <p>このページはログインが必要です。</p>
+          <a href="/auth" className="text-blue-500 underline">ログインページへ</a>
         </div>
+      )}
+      {user && !gpsAvailable && (
+        <div className="bg-yellow-100 text-yellow-700 p-4 rounded mb-4">
+          <h2 className="font-bold mb-2">GPS機能が必要です</h2>
+          <p>{gpsError || "このページは位置情報（GPS）機能が必要です。対応ブラウザでアクセスしてください。"}</p>
+        </div>
+      )}
+      {user && gpsAvailable && (
+        <>
+          <div className="flex gap-4 mb-4">
+            {!recording ? (
+              <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={startRecording}>記録開始</button>
+            ) : (
+              <button className="px-4 py-2 bg-red-600 text-white rounded" onClick={stopRecording}>記録停止</button>
+            )}
+            <button className="px-4 py-2 bg-green-600 text-white rounded" onClick={saveRoute} disabled={recording || tracePoints.length < 2}>保存</button>
+          </div>
+          <div className="mb-2">記録点数: {tracePoints.length}</div>
+          {/* 地図表示: 記録中の軌跡を表示 */}
+          <div className="w-full max-w-xl h-96 mb-4">
+            <RouteMap
+              routeData={null}
+              isLoading={false}
+              startPosition={tracePoints[0] || null}
+              endPosition={tracePoints[tracePoints.length - 1] || null}
+              onMapClick={() => {}}
+              trackPoints={tracePoints}
+              isRecording={recording}
+              height="384px"
+            />
+          </div>
+          {error && <div className="text-red-500 mb-2">{error}</div>}
+          {result && (
+            <div className="bg-gray-100 p-4 rounded mt-4 w-full max-w-xl">
+              <h3 className="font-bold mb-2">保存結果</h3>
+              <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(result, null, 2)}</pre>
+            </div>
+          )}
+        </>
       )}
     </main>
   );
