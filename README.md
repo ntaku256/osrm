@@ -1,94 +1,27 @@
-# OSRM Obstacle Management System
+# OSRM障害物管理システム
 
-This project provides a web application for managing geographical obstacles that might affect routing and navigation. Users can visualize, add, and manage obstacles on a map interface.
+このプロジェクトは、ルートやナビゲーションに影響を与える可能性のある地理的障害物を管理するためのウェブアプリケーションを提供します。ユーザーは、マップインターフェース上で障害物を視覚化、追加、管理できます。
 
-## Project Structure
+詳細は以下から
 
-This project consists of two main components:
 
-1. **Backend API** - An AWS Lambda-based serverless API for managing obstacle data
-2. **Frontend Application** - A Next.js web application for visualizing and managing obstacles on a map
+# 避難ルート検索
+スタート地点と目的地を自身で入力したら最短ルートとともに、他２ルート、合計３ルートを表示される。登録した障害物も検索したルート上に表示されて確認することができます。
 
-## Backend Setup
+![避難ルート検索](https://github.com/ntaku256/osrm/blob/main/docs/gif/search_route.gif)
 
-The backend is built using AWS SAM (Serverless Application Model) with Go.
+# 障害物の回避・中継地点機能
+標準のルート検索機能に加えて、ルート上に表示された障害物を回避地点として設定し、再建策を行うことで、その障害物を回避したルート検索が行うことができます。また、任意の地点を中継地点として設定し再検索をすることで、検索結果に反映されます。
 
-### Prerequisites
+![障害物の回避](https://github.com/ntaku256/osrm/blob/main/docs/gif/avoid_search_route.gif)
 
-- Go 1.18+
-- AWS SAM CLI
-- AWS credentials configured
+![中継地点](https://github.com/ntaku256/osrm/blob/main/docs/gif/relay_search_route.gif)
 
-### Building and Deploying
 
-```bash
-cd backend
+# 障害物・避難所の一覧
+障害物の表示機能では、野外調査で調査した障害物がマップ上に表示されます。調査時の基準に基づき、危険度のレベルが低の場合は緑、中の場合は黄色、高の場合は赤で色分けされており、画面にあるように、システムに反映されます。また、障害物の情報として写真を添付することも可能です。
+避難所の表示機能もあり、このように国土地理院のデータと照らし合わして、御坊市内の避難所の確認ができるようになっています。
 
-# Build the project
-make build
+![障害物](https://github.com/ntaku256/osrm/blob/main/docs/gif/obstacles.gif)
 
-# Deploy to development environment
-make deploy-dev
-
-# Or deploy to production
-make deploy-prd
-```
-
-### Running Locally
-
-```bash
-cd backend
-make start
-```
-
-This will start the API locally at http://localhost:3000
-
-## Frontend Setup
-
-The frontend is built with Next.js, TypeScript, and Tailwind CSS.
-
-### Prerequisites
-
-- Node.js 18+
-- npm or yarn
-
-### Environment Configuration
-
-Create a `.env.local` file in the frontend directory:
-
-```
-NEXT_PUBLIC_API_URL=http://localhost:3000/api
-```
-
-For production, update the URL to your deployed API endpoint.
-
-### Installing Dependencies and Running
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The application will be available at http://localhost:3000
-
-## Using the Application
-
-1. Navigate to the application in your browser
-2. Click on the map to add a new obstacle
-3. Fill in the obstacle details (type, description, danger level)
-4. Submit the form to save the obstacle
-
-## Notes on Route-related Functionality
-
-The application no longer attempts to fetch route information when registering obstacles. The focus is purely on obstacle management.
-
-## API Documentation
-
-The API endpoints are documented in the OpenAPI specification available at `backend/openapi.yaml`. The main endpoints are:
-
-- `GET /obstacles` - Get all obstacles
-- `POST /obstacles` - Create a new obstacle
-- `GET /obstacles/{id}` - Get an obstacle by ID
-- `PUT /obstacles/{id}` - Update an obstacle
-- `DELETE /obstacles/{id}` - Delete an obstacle 
+![避難所](https://github.com/ntaku256/osrm/blob/main/docs/gif/shelter.gif)
