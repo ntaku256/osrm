@@ -9,7 +9,7 @@ https://github.com/ntaku256/osrm/blob/main/%E6%9C%80%E7%B5%82%E5%A0%B1%E5%91%8A%
 # 避難ルート検索
 スタート地点と目的地を自身で入力したら最短ルートとともに、他２ルート、合計３ルートを表示される。登録した障害物も検索したルート上に表示されて確認することができます。
 
-![避難ルート検索](https://github.com/ntaku256/osrm/blob/main/docs/gif/search_route.gif)
+![避難ルート検索](https://github.com/ntaku256/osrm/blob/main/docs/gif/relay_search_route.gif)
 
 # 障害物の回避・中継地点機能
 標準のルート検索機能に加えて、ルート上に表示された障害物を回避地点として設定し、再建策を行うことで、その障害物を回避したルート検索が行うことができます。また、任意の地点を中継地点として設定し再検索をすることで、検索結果に反映されます。
@@ -24,7 +24,7 @@ https://github.com/ntaku256/osrm/blob/main/%E6%9C%80%E7%B5%82%E5%A0%B1%E5%91%8A%
 
 - 中継地点の追加
 
-![中継地点](https://github.com/ntaku256/osrm/blob/main/docs/gif/relay_search_route.gif)
+![中継地点](https://github.com/ntaku256/osrm/blob/main/docs/gif/search_route.gif)
 
 
 # 障害物・避難所の一覧
