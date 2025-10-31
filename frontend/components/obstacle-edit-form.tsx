@@ -30,6 +30,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
   const [nodes, setNodes] = useState<[number, number]>(obstacle.nodes || [0, 0])
   const [nearestDistance, setNearestDistance] = useState<number>(obstacle.nearestDistance || 0)
   const [noNearbyRoad, setNoNearbyRoad] = useState<boolean>(obstacle.noNearbyRoad || false)
+  const [wayId, setWayId] = useState<number | undefined>(obstacle.way_id)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isUpdatingRoad, setIsUpdatingRoad] = useState(false)
@@ -43,21 +44,26 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
     setNodes(obstacle.nodes || [0, 0])
     setNearestDistance(obstacle.nearestDistance || 0)
     setNoNearbyRoad(obstacle.noNearbyRoad || false)
+    setWayId(obstacle.way_id)
   }, [obstacle])
 
   const handleUpdateNearestRoad = async () => {
     setIsUpdatingRoad(true)
     try {
       const updatedRoad = await getNearestRoad(obstacle.position)
-      if (updatedRoad && updatedRoad.nodes && updatedRoad.nodes.length >= 2) {
-        const sorted = [...updatedRoad.nodes].sort((a, b) => a - b)
-        setNodes([sorted[0], sorted[1]])
-        setNearestDistance(updatedRoad.distance || 0)
+      if (updatedRoad && updatedRoad.edges && updatedRoad.edges.length > 0) {
+        // edgesから最初のway_idを取得
+        const firstEdge = updatedRoad.edges[0]
+        const extractedWayId = firstEdge.way_id
+
+        setWayId(extractedWayId)
+        // setNodes([extractedWayId, extractedWayId]) // way_idをnodesにも設定
+        setNearestDistance(0) // /locateでは距離情報は提供されない
         setNoNearbyRoad(false) // 道路情報を更新したらフラグをリセット
         onNearestRoadUpdate?.(updatedRoad)
         toast({
           title: "更新完了",
-          description: "最寄り道路情報を更新しました",
+          description: `最寄り道路情報を更新しました (way_id: ${extractedWayId})`,
           variant: "default"
         })
       } else {
@@ -82,6 +88,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
   const handleMarkNoRoad = () => {
     setNodes([0, 0])
     setNearestDistance(0)
+    setWayId(undefined)
     setNoNearbyRoad(true)
     onNearestRoadUpdate?.(null)
     toast({
@@ -110,6 +117,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
         description,
         dangerLevel,
         nodes,
+        way_id: wayId,
         nearestDistance,
         noNearbyRoad,
       }
@@ -139,6 +147,7 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
           description,
           dangerLevel,
           nodes,
+          way_id: wayId,
           nearestDistance,
           noNearbyRoad,
         }
@@ -235,17 +244,14 @@ export default function ObstacleEditForm({ obstacle, onSubmit, onCancel, onNeare
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
+                <span className="font-medium">Way ID:</span>
+                {wayId ? ` ${wayId}` : " 道路がない"}
+              </div>
+              <div>
                 <span className="font-medium">最寄りノード:</span>
                 {nodes[0] === 0 && nodes[1] === 0 ?
                   " 道路がない" :
                   ` [${nodes[0]}, ${nodes[1]}]`
-                }
-              </div>
-              <div>
-                <span className="font-medium">最寄り距離:</span>
-                {nearestDistance === 0 ?
-                  " 道路がない" :
-                  ` ${nearestDistance.toFixed(1)} m`
                 }
               </div>
             </div>

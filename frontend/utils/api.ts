@@ -1,5 +1,6 @@
 import { Obstacle } from '@/types/obstacle';
 import { RouteWithObstaclesRequest, RouteResponse } from '@/types/route';
+import { apiFetch } from '@/lib/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.example.com/api';
 
@@ -95,15 +96,11 @@ export const obstacleApi = {
   // Create a new obstacle
   async create(obstacle: CreateObstacleRequest): Promise<ApiResponse<Obstacle>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/obstacles`, {
+      const response = await apiFetch(`/obstacles`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         mode: 'cors',
         body: JSON.stringify(obstacle),
       });
-      
       return handleResponse<Obstacle>(response);
     } catch (error) {
       return { 
@@ -116,15 +113,11 @@ export const obstacleApi = {
   // Update an obstacle
   async update(id: number, obstacle: UpdateObstacleRequest): Promise<ApiResponse<Obstacle>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/obstacles/${id}`, {
+      const response = await apiFetch(`/obstacles/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         mode: 'cors',
         body: JSON.stringify(obstacle),
       });
-      
       return handleResponse<Obstacle>(response);
     } catch (error) {
       return { 
@@ -137,15 +130,13 @@ export const obstacleApi = {
   // Delete an obstacle
   async delete(id: number): Promise<ApiResponse<void>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/obstacles/${id}`, {
+      const response = await apiFetch(`/obstacles/${id}`, {
         method: 'DELETE',
         mode: 'cors',
       });
-      
       if (response.status === 204) {
         return { statusCode: 204 };
       }
-      
       return handleResponse<void>(response);
     } catch (error) {
       return { 
@@ -165,7 +156,13 @@ export const routeApi = {
         language: request.language || 'ja-JP',
         costing: request.costing || 'auto',
         detection_method: request.detection_method || 'distance',
-        distance_threshold: request.distance_threshold || 0.5
+        alternates: {
+          destination_only: request.alternates?.destination_only || false,
+          alternates: request.alternates?.alternates || 3,
+        },
+        distance_threshold: request.distance_threshold || 0.5,
+        ...(request.waypoints && request.waypoints.length > 0 && { waypoints: request.waypoints }),
+        ...(request.exclude_locations && request.exclude_locations.length > 0 && { exclude_locations: request.exclude_locations })
       };
       
       const response = await fetch(`${API_BASE_URL}/route-with-obstacles`, {

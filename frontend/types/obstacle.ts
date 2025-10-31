@@ -19,8 +19,10 @@ export interface Obstacle {
   description: string
   dangerLevel: DangerLevel
   nodes?: [number, number] // Optional for backward compatibility
+  way_id?: number // 代表way_id
   nearestDistance?: number // Optional for backward compatibility
   createdAt?: string // ISO date string - Optional for backward compatibility
   image_s3_key?: string
   noNearbyRoad?: boolean // 近くに道路がないことを示すフラグ
+  user_id: string;
 }

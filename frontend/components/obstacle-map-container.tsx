@@ -290,6 +290,9 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                 </span>
               </div>
               <div className="mb-2">
+                <span className="font-medium">作成者UID:</span> {selectedObstacle.user_id}
+              </div>
+              <div className="mb-2">
                 <span className="font-medium">更新日時:</span> {selectedObstacle.createdAt ? new Date(selectedObstacle.createdAt).toLocaleString("ja-JP") : '不明'}
               </div>
               <div className="flex flex-col gap-2">
@@ -432,6 +435,7 @@ export default function ObstacleMapContainer({ mode }: ObstacleMapContainerProps
                           <div className="text-sm text-gray-500">危険度: {DangerLevel[obstacle.dangerLevel]}</div>
                         </div>
                         <div className="text-sm truncate">{obstacle.description}</div>
+                        {/* <div>作成者UID: {obstacle.user_id}</div> */}
                       </li>
                     ))}
                   </ul>

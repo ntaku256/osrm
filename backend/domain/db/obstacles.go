@@ -7,8 +7,10 @@ type Obstacle struct {
 	Description string     `json:"description" dynamodbav:"description"`
 	DangerLevel int        `json:"danger_level" dynamodbav:"danger_level"`
 	Nodes       []int64    `json:"nodes,omitempty" dynamodbav:"nodes,omitempty"`
+	WayID       int64      `json:"way_id" dynamodbav:"way_id"`
 	NearestDistance float64 `json:"nearest_distance" dynamodbav:"nearest_distance"`
 	NoNearbyRoad  bool       `json:"no_nearby_road" dynamodbav:"no_nearby_road"`
 	ImageS3Key  string     `json:"image_s3_key" dynamodbav:"image_s3_key"`     
 	CreatedAt   string     `json:"created_at" dynamodbav:"created_at"`
+	UserID      string     `json:"user_id" dynamodbav:"user_id"`
 }

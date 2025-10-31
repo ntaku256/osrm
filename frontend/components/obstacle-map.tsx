@@ -6,6 +6,7 @@ import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { type Obstacle, DangerLevel, ObstacleType } from "@/types/obstacle"
 import type { MapMode } from "@/app/content"
+import React from "react"
 
 // Fix Leaflet icon issues
 const fixLeafletIcon = () => {
@@ -49,7 +50,7 @@ export default function ObstacleMap({
   const geoJsonLayerRef = useRef(null)
   const [mapReady, setMapReady] = useState(false)
   const [mapCenter] = useState<[number, number]>([33.881292, 135.157809])
-  const [mapZoom] = useState<number>(16)
+  const [zoom, setZoom] = useState(16)
   const [showGeoJson, setShowGeoJson] = useState(false)
   const [isLoadingGeoJson, setIsLoadingGeoJson] = useState(false)
   const [selectedArea, setSelectedArea] = useState<string | null>(null)
@@ -76,9 +77,10 @@ export default function ObstacleMap({
       try {
         const map = L.map(mapContainerRef.current, {
           center: mapCenter,
-          zoom: mapZoom,
+          zoom: zoom,
           // ズームコントロールを無効化（エラーの原因になることがある）
           zoomControl: false,
+          scrollWheelZoom: false,
         })
 
         // ズームコントロールを別途追加（位置を指定）
@@ -117,7 +119,7 @@ export default function ObstacleMap({
     // 少し遅延させてマップを初期化
     const timer = setTimeout(initializeMap, 100)
     return () => clearTimeout(timer)
-  }, [mapCenter, mapZoom, onMapClick, onObstacleSelect])
+  }, [mapCenter, zoom, onMapClick, onObstacleSelect])
 
   // GeoJSONレイヤーの読み込みと表示/非表示の切り替え
   useEffect(() => {
@@ -432,6 +434,23 @@ export default function ObstacleMap({
     }
   }, [])
 
+  // ズームバーで地図のズームを変更
+  useEffect(() => {
+    if (mapRef.current) {
+      mapRef.current.setZoom(zoom);
+    }
+  }, [zoom]);
+
+  // 地図のズーム変更時にズームバーも同期
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const onZoom = () => setZoom(mapRef.current.getZoom());
+    mapRef.current.on("zoomend", onZoom);
+    return () => {
+      mapRef.current && mapRef.current.off("zoomend", onZoom);
+    };
+  }, [mapReady]);
+
   return (
     <div className="space-y-4">
       {/* マップコントロールパネル */}
@@ -469,6 +488,21 @@ export default function ObstacleMap({
       {/* マップ */}
       <div className="relative">
         <div ref={mapContainerRef} className="h-[600px] rounded-lg overflow-hidden relative z-0"></div>
+      </div>
+
+      <div className="flex items-center gap-2 mt-2">
+        <span>ズーム</span>
+        <input
+          type="range"
+          min={5}
+          max={18}
+          value={zoom}
+          onChange={e => setZoom(Number(e.target.value))}
+          onWheel={e => { e.preventDefault(); }}
+          className="w-48"
+          style={{ touchAction: "none" }}
+        />
+        <span>{zoom}</span>
       </div>
     </div>
   )

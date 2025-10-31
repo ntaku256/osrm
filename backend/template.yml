@@ -15,6 +15,9 @@ Globals:
         ENV: !Sub "${ENV}"
         OBSTACLE_TABLE_NAME: !Ref ObstacleTable
         OBSTACLE_IMAGE_BUCKET_NAME: !Ref ObstacleImageBucket
+        SHELTER_TABLE_NAME: !Ref ShelterTable
+        USER_TABLE_NAME: !Ref UserTable
+        WALKED_ROUTES_TABLE_NAME: !Ref WalkedRoutesTable
   Api:
     OpenApiVersion: 3.0.2
 
@@ -28,8 +31,21 @@ Parameters:
   Architectures:
     Type: String
     Default: arm64
+  FirebaseServiceAccountKey:
+    Type: String
+    Description: "Base64 encoded Firebase service account key JSON"
+    NoEcho: true
 
 Resources:
+  # Parameter Store for Firebase Service Account Key
+  FirebaseServiceAccountKeyParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ENV}/firebase-service-account-key"
+      Type: String
+      Value: !Ref FirebaseServiceAccountKey
+      Description: "Firebase Service Account Key for authentication"
+
   # Role
   ApiRole:
     Type: AWS::IAM::Role
@@ -53,6 +69,10 @@ Resources:
                   - lambda:InvokeFunction
                 Resource:
                   - Fn::Sub: ${ObstacleFunction.Arn}
+                  - Fn::Sub: ${ShelterFunction.Arn}
+                  - Fn::Sub: ${UserFunction.Arn}
+                  - Fn::Sub: ${WalkedRouteFunction.Arn}
+                  - Fn::Sub: ${EvacuationRouteFunction.Arn}
   FunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -80,13 +100,22 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:Scan
                   - dynamodb:Query
-                Resource: !GetAtt ObstacleTable.Arn
+                Resource:
+                  - !GetAtt ObstacleTable.Arn
+                  - !GetAtt ShelterTable.Arn
+                  - !GetAtt UserTable.Arn
+                  - !GetAtt WalkedRoutesTable.Arn
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ENV}-walked-routes-table/index/user_id-index"
               - Effect: Allow
                 Action:
                   - s3:PutObject
                   - s3:GetObject
                   - s3:DeleteObject
                 Resource: !Sub "arn:aws:s3:::${ENV}-obstacle-image-bucket/*"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ENV}/firebase-service-account-key"
 
   # API Gateway
   Api:
@@ -119,11 +148,97 @@ Resources:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
 
+  ShelterTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ENV}-shelter-table"
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: N
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ENV}-user-table"
+      AttributeDefinitions:
+        - AttributeName: firebase_uid
+          AttributeType: S
+      KeySchema:
+        - AttributeName: firebase_uid
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  WalkedRoutesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ENV}-walked-routes-table"
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      GlobalSecondaryIndexes:
+        - IndexName: user_id-index
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 2
+            WriteCapacityUnits: 2
+
   # Lambda
   ObstacleFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "${ENV}-osrm-ObstacleFunction"
+      Role: !GetAtt FunctionRole.Arn
+    Metadata:
+      BuildMethod: makefile
+
+  ShelterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ENV}-osrm-ShelterFunction"
+      Role: !GetAtt FunctionRole.Arn
+    Metadata:
+      BuildMethod: makefile
+
+  UserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ENV}-osrm-UserFunction"
+      Role: !GetAtt FunctionRole.Arn
+    Metadata:
+      BuildMethod: makefile
+
+  WalkedRouteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ENV}-osrm-WalkedRouteFunction"
+      Role: !GetAtt FunctionRole.Arn
+    Metadata:
+      BuildMethod: makefile
+
+  EvacuationRouteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ENV}-osrm-EvacuationRouteFunction"
       Role: !GetAtt FunctionRole.Arn
     Metadata:
       BuildMethod: makefile
@@ -166,6 +281,30 @@ Outputs:
   ObstacleAPI:
     Description: "API Gateway endpoint URL for Obstacle API"
     Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/obstacles"
+  ShelterAPI:
+    Description: "API Gateway endpoint URL for Shelter API"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/shelters"
   ObstacleFunction:
     Description: "ObstacleFunction ARN"
     Value: !GetAtt ObstacleFunction.Arn
+  ShelterFunction:
+    Description: "ShelterFunction ARN"
+    Value: !GetAtt ShelterFunction.Arn
+  UserAPI:
+    Description: "API Gateway endpoint URL for User API"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/users"
+  UserFunction:
+    Description: "UserFunction ARN"
+    Value: !GetAtt UserFunction.Arn
+  WalkedRouteAPI:
+    Description: "API Gateway endpoint URL for WalkedRoute API"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/walked_routes"
+  WalkedRouteFunction:
+    Description: "WalkedRouteFunction ARN"
+    Value: !GetAtt WalkedRouteFunction.Arn
+  EvacuationRouteAPI:
+    Description: "API Gateway endpoint URL for EvacuationRoute API"
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/api/evacuation-routes"
+  EvacuationRouteFunction:
+    Description: "EvacuationRouteFunction ARN"
+    Value: !GetAtt EvacuationRouteFunction.Arn

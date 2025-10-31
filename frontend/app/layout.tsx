@@ -3,6 +3,7 @@ import "@/app/globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
+import AppHeader from "../components/AppHeader"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -15,6 +16,7 @@ export default function RootLayout({
     <html lang="ja" suppressHydrationWarning>
       <head />
       <body className={inter.className}>
+        <AppHeader />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {children}
           <Toaster />

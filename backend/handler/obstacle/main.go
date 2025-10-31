@@ -1,13 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
+	"time"
 
+	"webhook/domain/db"
 	"webhook/domain/s3"
 	apiinput "webhook/pkg/api/input"
+	"webhook/shared/auth"
 	"webhook/usecase"
 	"webhook/usecase/input"
 
@@ -27,6 +33,31 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// Initialize logger
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
+
+	// Firebase認証（GET系・Valhalla系以外で）
+	skipAuth :=
+		(request.HTTPMethod == "GET" && (request.Resource == "/obstacles" || request.Resource == "/obstacles/{id}")) ||
+		(request.HTTPMethod == "POST" && (request.Resource == "/route-with-obstacles" || request.Resource == "/locate" || request.Resource == "/trace_attributes" || request.Resource == "/trace_route" || request.Resource == "/isochrone"))
+
+	authHeader := request.Headers["Authorization"]
+	token, _, err := auth.ValidateFirebaseToken(ctx, authHeader)
+	firebaseUID := ""
+	userRole := "none"
+	if !skipAuth {
+		if err != nil {
+			return events.APIGatewayProxyResponse{
+				StatusCode: http.StatusUnauthorized,
+				Body:       `{"message":"Unauthorized"}`,
+				Headers: map[string]string{"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+			}, nil
+		}
+		firebaseUID = token.UID
+		userRepo, _ := db.NewUserRepo(ctx)
+		user, _, _ := userRepo.GetByFirebaseUID(ctx, firebaseUID)
+		if user != nil {
+			userRole = user.Role
+		}
+	}
 
 	// main.go のHandleRequestメソッドに追加
 	if request.HTTPMethod == "OPTIONS" {
@@ -63,8 +94,10 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			Description: createRequest.Description,
 			DangerLevel: createRequest.DangerLevel,
 			Nodes:       createRequest.Nodes,
+			WayID:       createRequest.WayID,
 			NearestDistance: createRequest.NearestDistance,
 			NoNearbyRoad:  createRequest.NoNearbyRoad,
+			UserID:      firebaseUID,
 		}
 
 		createdObstacle, statusCode, err := usecase.CreateObstacle(ctx, input)
@@ -96,6 +129,15 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// PUT /obstacles/{id} - Update an obstacle
 	case request.HTTPMethod == "PUT" && request.Resource == "/obstacles/{id}":
 		idStr := request.PathParameters["id"]
+		obstacleRepo, _ := db.NewObstacleRepo(ctx)
+		idInt, _ := strconv.Atoi(idStr)
+		ob, _, _ := obstacleRepo.Get(ctx, idInt)
+		if ob == nil {
+			return errorResponse(logger, request, http.StatusNotFound, "Obstacle not found", nil, nil)
+		}
+		if !(userRole == "admin" || (userRole == "editor" && ob.UserID == firebaseUID)) {
+			return errorResponse(logger, request, http.StatusForbidden, "Forbidden", nil, nil)
+		}
 
 		// Parse the request body
 		var updateRequest apiinput.UpdateObstacleRequest
@@ -110,11 +152,13 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			Description: updateRequest.Description,
 			DangerLevel: updateRequest.DangerLevel,
 			Nodes:       updateRequest.Nodes,
+			WayID:       updateRequest.WayID,
 			NearestDistance: updateRequest.NearestDistance,
 			NoNearbyRoad:  updateRequest.NoNearbyRoad,
+			UserID:      firebaseUID,
 		}
 
-		updatedObstacle, statusCode, err := usecase.UpdateObstacle(ctx, input)
+		updatedObstacle, statusCode, err := usecase.UpdateObstacle(ctx, input, userRole)
 		if err != nil {
 			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}
@@ -124,11 +168,20 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// DELETE /obstacles/{id} - Delete an obstacle
 	case request.HTTPMethod == "DELETE" && request.Resource == "/obstacles/{id}":
 		idStr := request.PathParameters["id"]
+		obstacleRepo, _ := db.NewObstacleRepo(ctx)
+		idInt, _ := strconv.Atoi(idStr)
+		ob, _, _ := obstacleRepo.Get(ctx, idInt)
+		if ob == nil {
+			return errorResponse(logger, request, http.StatusNotFound, "Obstacle not found", nil, nil)
+		}
+		if !(userRole == "admin" || (userRole == "editor" && ob.UserID == firebaseUID)) {
+			return errorResponse(logger, request, http.StatusForbidden, "Forbidden", nil, nil)
+		}
 		input := input.ObstacleDelete{
 			ID: idStr,
 		}
 
-		statusCode, err := usecase.DeleteObstacle(ctx, input)
+		statusCode, err := usecase.DeleteObstacle(ctx, input, firebaseUID, userRole)
 		if err != nil {
 			return errorResponse(logger, request, statusCode, err.Error(), nil, err)
 		}
@@ -144,6 +197,15 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// POST /obstacles/{id}/image-upload - Generate presigned URL for image upload
 	case request.HTTPMethod == "POST" && request.Resource == "/obstacles/{id}/image-upload":
 		idStr := request.PathParameters["id"]
+		obstacleRepo, _ := db.NewObstacleRepo(ctx)
+		idInt, _ := strconv.Atoi(idStr)
+		ob, _, _ := obstacleRepo.Get(ctx, idInt)
+		if ob == nil {
+			return errorResponse(logger, request, http.StatusNotFound, "Obstacle not found", nil, nil)
+		}
+		if !(userRole == "admin" || (userRole == "editor" && ob.UserID == firebaseUID)) {
+			return errorResponse(logger, request, http.StatusForbidden, "Forbidden", nil, nil)
+		}
 		var req struct {
 			Filename string `json:"filename"`
 		}
@@ -168,6 +230,15 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	// PUT /obstacles/{id}/image - Save image_s3_key to obstacle
 	case request.HTTPMethod == "PUT" && request.Resource == "/obstacles/{id}/image":
 		idStr := request.PathParameters["id"]
+		obstacleRepo, _ := db.NewObstacleRepo(ctx)
+		idInt, _ := strconv.Atoi(idStr)
+		ob, _, _ := obstacleRepo.Get(ctx, idInt)
+		if ob == nil {
+			return errorResponse(logger, request, http.StatusNotFound, "Obstacle not found", nil, nil)
+		}
+		if !(userRole == "admin" || (userRole == "editor" && ob.UserID == firebaseUID)) {
+			return errorResponse(logger, request, http.StatusForbidden, "Forbidden", nil, nil)
+		}
 		var req struct {
 			ImageS3Key string `json:"image_s3_key"`
 		}
@@ -201,6 +272,24 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 			})
 		}
 
+		// 中継地点を変換
+		var waypoints []input.Location
+		for _, waypoint := range routeRequest.Waypoints {
+			waypoints = append(waypoints, input.Location{
+				Lat: waypoint.Lat,
+				Lon: waypoint.Lon,
+			})
+		}
+
+		// 回避地点を変換
+		var excludeLocations []input.Location
+		for _, exclude := range routeRequest.ExcludeLocations {
+			excludeLocations = append(excludeLocations, input.Location{
+				Lat: exclude.Lat,
+				Lon: exclude.Lon,
+			})
+		}
+
 		// デフォルト値を設定
 		detectionMethod := input.DetectionMethodDistance
 		if routeRequest.DetectionMethod != "" {
@@ -214,6 +303,8 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 		usecaseInput := input.RouteWithObstacles{
 			Locations:         locations,
+			Waypoints:         waypoints,
+			ExcludeLocations:  excludeLocations,
 			Language:          routeRequest.Language,
 			Costing:           routeRequest.Costing,
 			DetectionMethod:   detectionMethod,
@@ -226,6 +317,22 @@ func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 		}
 
 		return jsonResponse(statusCode, routeResponse)
+
+	// POST /locate - Proxy to Valhalla locate endpoint
+	case request.HTTPMethod == "POST" && request.Resource == "/locate":
+		return proxyToValhalla(ctx, request, logger, "locate")
+
+	// POST /trace_attributes - Proxy to Valhalla trace_attributes endpoint
+	case request.HTTPMethod == "POST" && request.Resource == "/trace_attributes":
+		return proxyToValhalla(ctx, request, logger, "trace_attributes")
+
+	// POST /trace_route - Proxy to Valhalla trace_route endpoint
+	case request.HTTPMethod == "POST" && request.Resource == "/trace_route":
+		return proxyToValhalla(ctx, request, logger, "trace_route")
+
+	// POST /isochrone - Proxy to Valhalla isochrone endpoint
+	case request.HTTPMethod == "POST" && request.Resource == "/isochrone":
+		return proxyToValhalla(ctx, request, logger, "isochrone")
 
 	default:
 		return errorResponse(logger, request, http.StatusNotFound, "Not Found", nil, nil)
@@ -291,6 +398,47 @@ func errorResponse(logger *zap.Logger, request events.APIGatewayProxyRequest, st
 			"Access-Control-Allow-Origin": "*",
 		},
 		Body: string(body),
+	}, nil
+}
+
+// proxyToValhalla はValhallaエンドポイントへのプロキシ処理を共通化する
+func proxyToValhalla(ctx context.Context, request events.APIGatewayProxyRequest, logger *zap.Logger, endpoint string) (events.APIGatewayProxyResponse, error) {
+	valhallaURL := fmt.Sprintf("http://133.167.121.88:8080/%s", endpoint)
+	
+	// HTTPクライアントを作成
+	client := &http.Client{
+		Timeout: time.Second * 30,
+	}
+	
+	// リクエストを作成
+	req, err := http.NewRequestWithContext(ctx, "POST", valhallaURL, bytes.NewBuffer([]byte(request.Body)))
+	if err != nil {
+		return errorResponse(logger, request, http.StatusInternalServerError, fmt.Sprintf("Failed to create request to Valhalla %s", endpoint), nil, err)
+	}
+	
+	req.Header.Set("Content-Type", "application/json")
+	
+	// Valhallaにリクエスト送信
+	resp, err := client.Do(req)
+	if err != nil {
+		return errorResponse(logger, request, http.StatusInternalServerError, fmt.Sprintf("Failed to call Valhalla %s endpoint", endpoint), nil, err)
+	}
+	defer resp.Body.Close()
+	
+	// レスポンスボディを読み取り
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errorResponse(logger, request, http.StatusInternalServerError, fmt.Sprintf("Failed to read Valhalla %s response", endpoint), nil, err)
+	}
+	
+	// Valhallaのレスポンスをそのまま返す
+	return events.APIGatewayProxyResponse{
+		StatusCode: resp.StatusCode,
+		Headers: map[string]string{
+			"Content-Type":                "application/json",
+			"Access-Control-Allow-Origin": "*",
+		},
+		Body: string(responseBody),
 	}, nil
 }
 

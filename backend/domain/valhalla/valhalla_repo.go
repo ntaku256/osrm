@@ -14,6 +14,7 @@ import (
 
 type ValhallaRepo interface {
 	GetRoute(ctx context.Context, request input.RouteWithObstacles) (*output.ValhallaRouteResponse, error)
+	GetTraceAttributes(ctx context.Context, req TraceAttributesRequest) (*TraceAttributesResponse, error)
 }
 
 type valhallaRepo struct {
@@ -34,10 +35,31 @@ func (r *valhallaRepo) GetRoute(ctx context.Context, request input.RouteWithObst
 	url := fmt.Sprintf("%s/route", r.baseURL)
 	
 	// Valhallaのリクエスト形式に変換
+	// 中継地点がある場合は、全ての地点を順序通りにlocationsに配置
+	var locations []input.Location
+	if len(request.Waypoints) > 0 {
+		// 出発地点 → 中継地点1 → 中継地点2 → ... → 目的地の順番で配置
+		locations = append(locations, request.Locations[0]) // 出発地点
+		locations = append(locations, request.Waypoints...)  // 中継地点
+		if len(request.Locations) > 1 {
+			locations = append(locations, request.Locations[1]) // 目的地
+		}
+	} else {
+		// 中継地点がない場合は元のlocationsをそのまま使用
+		locations = request.Locations
+	}
+
 	valhallaRequest := map[string]interface{}{
-		"locations": request.Locations,
+		"locations": locations,
 		"language":  request.Language,
-		"costing":   request.Costing,
+		"costing":   "pedestrian",
+		"destination_only": true,
+		"alternates": 3,
+	}
+
+	// 回避地点がある場合は追加
+	if len(request.ExcludeLocations) > 0 {
+		valhallaRequest["exclude_locations"] = request.ExcludeLocations
 	}
 	
 	requestBody, err := json.Marshal(valhallaRequest)
@@ -69,4 +91,66 @@ func (r *valhallaRepo) GetRoute(ctx context.Context, request input.RouteWithObst
 	}
 	
 	return &valhallaResponse, nil
+}
+
+// TraceAttributesRequestShapePoint型を追加
+// {"lat":..., "lon":...}
+type TraceAttributesRequestShapePoint struct {
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
+}
+
+type TraceAttributesRequest struct {
+	Shape      []TraceAttributesRequestShapePoint `json:"shape"`
+	Costing    string `json:"costing"`
+	ShapeMatch string `json:"shape_match"`
+	Filters    *TraceAttributesFilters `json:"filters,omitempty"`
+}
+
+type TraceAttributesFilters struct {
+	Attributes []string `json:"attributes"`
+}
+
+type TraceAttributesResponse struct {
+	Edges []struct {
+		WayID  int64   `json:"way_id"`
+		Length float64 `json:"length,omitempty"`
+		Speed  float64 `json:"speed,omitempty"`
+	} `json:"edges"`
+	Shape string `json:"shape,omitempty"`
+	// 必要に応じて他のフィールドも追加
+}
+
+// TraceAttributes呼び出し
+func (r *valhallaRepo) GetTraceAttributes(ctx context.Context, req TraceAttributesRequest) (*TraceAttributesResponse, error) {
+	url := fmt.Sprintf("%s/trace_attributes", r.baseURL)
+
+	requestBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal trace_attributes request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(requestBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create trace_attributes request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := r.client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call trace_attributes: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("trace_attributes API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var traceResp TraceAttributesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&traceResp); err != nil {
+		return nil, fmt.Errorf("failed to decode trace_attributes response: %w", err)
+	}
+
+	return &traceResp, nil
 } 

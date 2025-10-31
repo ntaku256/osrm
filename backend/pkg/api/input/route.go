@@ -7,6 +7,8 @@ type RouteLocation struct {
 
 type RouteWithObstaclesRequest struct {
 	Locations           []RouteLocation `json:"locations"`
+	Waypoints           []RouteLocation `json:"waypoints,omitempty"`            // 中継地点
+	ExcludeLocations    []RouteLocation `json:"exclude_locations,omitempty"`    // 回避地点
 	Language            string          `json:"language,omitempty"`
 	Costing             string          `json:"costing,omitempty"`
 	DetectionMethod     string          `json:"detection_method,omitempty"`     // 障害物検出方法

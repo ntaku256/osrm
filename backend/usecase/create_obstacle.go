@@ -25,8 +25,10 @@ func CreateObstacle(ctx context.Context, input input.ObstacleCreate) (*output.Ob
 		Description: input.Description,
 		DangerLevel: input.DangerLevel,
 		Nodes:       input.Nodes,
+		WayID:       input.WayID,
 		NearestDistance: input.NearestDistance,
 		NoNearbyRoad:  input.NoNearbyRoad,
+		UserID:        input.UserID,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
 
